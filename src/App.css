@@ -1,0 +1,49 @@
+.app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+  text-align: center;
+}
+
+.app h1 {
+  font-size: 2.5rem;
+  letter-spacing: 0.3em;
+  margin: 0;
+  color: #4ade80;
+}
+
+.codename {
+  letter-spacing: 0.2em;
+  color: #6b7280;
+  font-size: 0.85rem;
+  margin: 0.5rem 0 2rem;
+}
+
+.app main {
+  margin: 2rem 0;
+  line-height: 1.6;
+}
+
+.app button {
+  background: #1f2937;
+  color: #4ade80;
+  border: 1px solid #4ade80;
+  padding: 0.6rem 1.2rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  margin-top: 1rem;
+  letter-spacing: 0.1em;
+}
+
+.app button:hover {
+  background: #4ade80;
+  color: #0a0a0a;
+}
+
+.app footer {
+  margin-top: 3rem;
+  font-size: 0.8rem;
+  color: #6b7280;
+  letter-spacing: 0.1em;
+}
