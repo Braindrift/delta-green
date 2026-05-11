@@ -1,7 +1,47 @@
-function App() {
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { LoginPage } from '@/pages/LoginPage';
+import { SignupPage } from '@/pages/SignupPage';
+
+/**
+ * Temporary sign-out strip. Lives at the top of the protected home page until
+ * DEL-15 (real app shell / header) lands and provides a proper user menu.
+ */
+function TempAuthBar() {
+  const { user, signOut } = useAuth();
+  return (
+    <div className="bg-desk-edge border-b border-green-dim px-4 py-2 flex justify-between items-center">
+      <span className="text-xs text-green-mid font-ui tracking-widest uppercase">
+        Signed in as {user?.email}
+      </span>
+      <button
+        onClick={() => void signOut()}
+        className="text-xs text-green-accent border border-green-dim px-3 py-1 font-ui tracking-widest uppercase hover:text-green-glow hover:border-green-bright"
+      >
+        Sign out
+      </button>
+    </div>
+  );
+}
+
+/**
+ * The original DEL-6 theme-test page, kept as the protected home view so we
+ * can still verify the design tokens during development. Will be replaced by
+ * the real authenticated shell in DEL-15.
+ */
+function HomePage() {
+  return (
+    <>
+      <TempAuthBar />
+      <ThemeTest />
+    </>
+  );
+}
+
+function ThemeTest() {
   return (
     <div className="min-h-screen bg-desk font-ui text-green-accent p-8">
-
       {/* Header */}
       <header className="border-b border-green-dim pb-4 mb-8">
         <h1 className="font-display text-3xl tracking-widest text-green-glow uppercase">
@@ -11,29 +51,30 @@ function App() {
           // CLASSIFIED // OPERATION TRACKER // THEME TEST //
         </p>
       </header>
-
       {/* Colour swatches */}
       <section className="mb-8">
         <h2 className="text-green-dim text-xs tracking-widest uppercase mb-4">Colour tokens</h2>
         <div className="grid grid-cols-4 gap-3">
-          {[
-            ['bg-desk',         'desk'],
-            ['bg-desk-edge',    'desk-edge'],
-            ['bg-desk-groove',  'desk-groove'],
-            ['bg-paper',        'paper'],
-            ['bg-paper-worn',   'paper-worn'],
-            ['bg-paper-dark',   'paper-dark'],
-            ['bg-green-void',   'green-void'],
-            ['bg-green-dim',    'green-dim'],
-            ['bg-green-mid',    'green-mid'],
-            ['bg-green-bright', 'green-bright'],
-            ['bg-green-accent', 'green-accent'],
-            ['bg-green-glow',   'green-glow'],
-            ['bg-red-stamp',    'red-stamp'],
-            ['bg-red-faded',    'red-faded'],
-            ['bg-amber',        'amber'],
-            ['bg-amber-dim',    'amber-dim'],
-          ].map(([cls, label]) => (
+          {(
+            [
+              ['bg-desk', 'desk'],
+              ['bg-desk-edge', 'desk-edge'],
+              ['bg-desk-groove', 'desk-groove'],
+              ['bg-paper', 'paper'],
+              ['bg-paper-worn', 'paper-worn'],
+              ['bg-paper-dark', 'paper-dark'],
+              ['bg-green-void', 'green-void'],
+              ['bg-green-dim', 'green-dim'],
+              ['bg-green-mid', 'green-mid'],
+              ['bg-green-bright', 'green-bright'],
+              ['bg-green-accent', 'green-accent'],
+              ['bg-green-glow', 'green-glow'],
+              ['bg-red-stamp', 'red-stamp'],
+              ['bg-red-faded', 'red-faded'],
+              ['bg-amber', 'amber'],
+              ['bg-amber-dim', 'amber-dim'],
+            ] as const
+          ).map(([cls, label]) => (
             <div key={cls} className="flex flex-col gap-1">
               <div className={`${cls} h-10 rounded border border-green-void`} />
               <span className="text-xs text-ink-faded font-ui">{label}</span>
@@ -41,21 +82,27 @@ function App() {
           ))}
         </div>
       </section>
-
       {/* Typography */}
       <section className="mb-8">
         <h2 className="text-green-dim text-xs tracking-widest uppercase mb-4">Typography</h2>
         <div className="space-y-3">
           <p className="font-display text-2xl text-paper">Oswald — Display font</p>
-          <p className="font-body text-base text-paper-worn">Courier Prime — Body font. The quick brown fox jumps over the lazy dog.</p>
-          <p className="font-ui text-sm text-green-accent">Share Tech Mono — UI font. AGENT // CLASSIFIED // OPERATIONAL</p>
-          <p className="font-stamp text-xl text-red-stamp tracking-wider">Special Elite — CLASSIFIED</p>
+          <p className="font-body text-base text-paper-worn">
+            Courier Prime — Body font. The quick brown fox jumps over the lazy dog.
+          </p>
+          <p className="font-ui text-sm text-green-accent">
+            Share Tech Mono — UI font. AGENT // CLASSIFIED // OPERATIONAL
+          </p>
+          <p className="font-stamp text-xl text-red-stamp tracking-wider">
+            Special Elite — CLASSIFIED
+          </p>
         </div>
       </section>
-
       {/* Sample card */}
       <section>
-        <h2 className="text-green-dim text-xs tracking-widest uppercase mb-4">Sample record card</h2>
+        <h2 className="text-green-dim text-xs tracking-widest uppercase mb-4">
+          Sample record card
+        </h2>
         <div className="bg-green-void border border-green-dim rounded p-4 max-w-sm">
           <div className="flex justify-between items-start mb-2">
             <span className="text-xs text-green-mid tracking-widest uppercase">Agent</span>
@@ -66,13 +113,39 @@ function App() {
             Fifteen-year veteran. Lead handler on STATIC NIGHT.
           </p>
           <div className="mt-3 pt-3 border-t border-green-dim flex gap-2">
-            <span className="text-xs bg-green-dim text-green-accent px-2 py-0.5 rounded font-ui">handler</span>
-            <span className="text-xs bg-green-dim text-green-accent px-2 py-0.5 rounded font-ui">field-agent</span>
+            <span className="text-xs bg-green-dim text-green-accent px-2 py-0.5 rounded font-ui">
+              handler
+            </span>
+            <span className="text-xs bg-green-dim text-green-accent px-2 py-0.5 rounded font-ui">
+              field-agent
+            </span>
           </div>
         </div>
       </section>
-
     </div>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <HomePage />
+              </ProtectedRoute>
+            }
+          />
+          {/* Catch-all: send unknown paths home (which will bounce to /login if needed). */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 
