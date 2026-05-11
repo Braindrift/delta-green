@@ -12,11 +12,14 @@ Level Security (RLS) at the DB layer.
 
 ## One-time setup
 
-Install the Supabase CLI if you don't already have it:
+The CLI is invoked via `npx`, so no project install is needed — `npx supabase@latest <command>`
+downloads the binary on first use and caches it for subsequent runs. The package is
+deliberately **not** a project dependency, so build environments (Vercel) don't attempt
+to download the binary during `npm install`.
+
+If you prefer it permanently installed for shell completion or speed:
 
 ```bash
-npm install --save-dev supabase
-# or globally:
 npm install -g supabase
 ```
 
