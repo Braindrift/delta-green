@@ -1,0 +1,108 @@
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+import type { Session, User, AuthError } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
+
+type SignUpResult = {
+  /** True if Supabase created the user. False only on hard errors. */
+  ok: boolean;
+  /** True when email confirmation is required and no session was returned. */
+  needsEmailConfirmation: boolean;
+  error: AuthError | null;
+};
+
+type AuthActionResult = {
+  ok: boolean;
+  error: AuthError | null;
+};
+
+type AuthContextValue = {
+  session: Session | null;
+  user: User | null;
+  /** True until the initial getSession() resolves. Use this to avoid flashing the login page. */
+  loading: boolean;
+  signUp: (email: string, password: string) => Promise<SignUpResult>;
+  signIn: (email: string, password: string) => Promise<AuthActionResult>;
+  signOut: () => Promise<AuthActionResult>;
+};
+
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    // 1. Hydrate from whatever's in storage on first mount.
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      setSession(data.session);
+      setLoading(false);
+    });
+
+    // 2. Subscribe to all subsequent changes (login, logout, token refresh,
+    //    cross-tab sync). This is what makes session persistence "just work".
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      // If the very first event arrives before getSession() resolves,
+      // make sure we don't keep the app in loading state forever.
+      setLoading(false);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      session,
+      user: session?.user ?? null,
+      loading,
+
+      async signUp(email, password) {
+        const { data, error } = await supabase.auth.signUp({ email, password });
+        if (error) {
+          return { ok: false, needsEmailConfirmation: false, error };
+        }
+        // When email confirmation is enabled in the Supabase dashboard,
+        // signUp returns a user but no session — they must click the link.
+        const needsEmailConfirmation = data.session === null;
+        return { ok: true, needsEmailConfirmation, error: null };
+      },
+
+      async signIn(email, password) {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        return { ok: !error, error };
+      },
+
+      async signOut() {
+        const { error } = await supabase.auth.signOut();
+        return { ok: !error, error };
+      },
+    }),
+    [session, loading],
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function useAuth(): AuthContextValue {
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    throw new Error('useAuth must be used inside <AuthProvider>');
+  }
+  return ctx;
+}
