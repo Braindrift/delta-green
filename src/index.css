@@ -3,3 +3,293 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * App-shell visuals that don't map cleanly to Tailwind utilities.
+ *
+ * Confined to the `@layer components` block so utility classes can still
+ * override these declarations from the markup. Anything that's a one-off
+ * decoration (gradients, keyframed pulse, `::before`/`::after` flourishes)
+ * lives here; anything expressible as a utility chain lives in the
+ * component file.
+ *
+ * Class names are prefixed `dg-` so they don't shadow Tailwind class
+ * names accidentally. Per the DEL-14 spec, we're not introducing a
+ * parallel CSS class vocabulary — these are scoped, named, and limited
+ * to chrome that genuinely needs CSS the utility model can't express.
+ */
+@layer components {
+  /* ── Desk background — the layered noise + scanlines + vignette ── */
+  .dg-app-root {
+    background-color: #181816;
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E"),
+      repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 3px,
+        rgba(255, 255, 255, 0.008) 3px,
+        rgba(255, 255, 255, 0.008) 4px
+      ),
+      radial-gradient(ellipse at 15% 60%, rgba(36, 51, 36, 0.18) 0%, transparent 55%),
+      radial-gradient(ellipse at 85% 15%, rgba(15, 15, 14, 0.9) 0%, transparent 45%),
+      radial-gradient(ellipse at 50% 100%, rgba(10, 10, 9, 0.6) 0%, transparent 40%);
+  }
+
+  /* ── Header — gradient base + thin animated underline glow ── */
+  .dg-header {
+    background: linear-gradient(180deg, #0d0d0c 0%, #0f0f0e 100%);
+    box-shadow:
+      0 1px 0 rgba(116, 176, 110, 0.08),
+      0 4px 20px rgba(0, 0, 0, 0.6);
+  }
+
+  .dg-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      #243324 30%,
+      #385435 50%,
+      #243324 70%,
+      transparent 100%
+    );
+    opacity: 0.5;
+  }
+
+  .dg-header::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      #74b06e 40%,
+      #8dd688 50%,
+      #74b06e 60%,
+      transparent 100%
+    );
+    opacity: 0.12;
+    filter: blur(2px);
+  }
+
+  .dg-header-seal {
+    background: radial-gradient(circle, rgba(36, 51, 36, 0.4) 0%, transparent 70%);
+  }
+
+  .dg-header-seal::before {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    border: 1px solid rgba(116, 176, 110, 0.2);
+  }
+
+  .dg-header-divider {
+    background: linear-gradient(180deg, transparent, #243324, transparent);
+  }
+
+  .dg-title-glow {
+    text-shadow: 0 0 20px rgba(116, 176, 110, 0.3);
+  }
+
+  .dg-classification-badge {
+    transform: rotate(-0.5deg);
+    text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
+  }
+
+  .dg-classification-badge::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border: 1px solid rgba(146, 32, 32, 0.2);
+  }
+
+  .dg-status-dot {
+    box-shadow: 0 0 6px #74b06e;
+    animation: dg-pulse 3s ease-in-out infinite;
+  }
+
+  @keyframes dg-pulse {
+    0%,
+    100% {
+      opacity: 1;
+      box-shadow: 0 0 6px #74b06e;
+    }
+    50% {
+      opacity: 0.25;
+      box-shadow: none;
+    }
+  }
+
+  /* ── Sidebar — gradient surface + thin glow on right edge ── */
+  .dg-sidebar {
+    background: linear-gradient(180deg, #0f0f0e 0%, #0d0d0c 100%);
+    box-shadow:
+      inset -1px 0 0 rgba(116, 176, 110, 0.04),
+      2px 0 15px rgba(0, 0, 0, 0.4);
+  }
+
+  .dg-sidebar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 1px;
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(116, 176, 110, 0.1) 20%,
+      rgba(116, 176, 110, 0.2) 50%,
+      rgba(116, 176, 110, 0.1) 80%,
+      transparent 100%
+    );
+    pointer-events: none;
+  }
+
+  .dg-sidebar-nav::-webkit-scrollbar {
+    width: 3px;
+  }
+  .dg-sidebar-nav::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .dg-sidebar-nav::-webkit-scrollbar-thumb {
+    background: #243324;
+  }
+
+  .dg-sidebar-divider {
+    background: linear-gradient(90deg, transparent, #243324, transparent);
+  }
+
+  .dg-search-wrap {
+    background: rgba(255, 255, 255, 0.03);
+  }
+  .dg-search-wrap:focus-within {
+    border-color: #385435;
+    background: rgba(116, 176, 110, 0.04);
+  }
+
+  /* ── Sidebar nav item — left-border + right gradient sweep ── */
+  .dg-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    transition:
+      background 0.12s ease,
+      border-color 0.12s ease;
+    position: relative;
+    user-select: none;
+    text-decoration: none;
+  }
+
+  .dg-nav-item::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    background: linear-gradient(90deg, transparent, rgba(116, 176, 110, 0.06));
+    transition: width 0.2s ease;
+    pointer-events: none;
+  }
+
+  .dg-nav-item:hover {
+    background: rgba(116, 176, 110, 0.05);
+    border-left-color: #243324;
+  }
+
+  .dg-nav-item:hover::after {
+    width: 40px;
+  }
+
+  /* `react-router-dom` adds `.active` to a matching NavLink. */
+  .dg-nav-item.active {
+    background: rgba(116, 176, 110, 0.09);
+    border-left-color: #74b06e;
+  }
+
+  .dg-nav-item.active::after {
+    width: 60px;
+    background: linear-gradient(90deg, transparent, rgba(116, 176, 110, 0.1));
+  }
+
+  /* ── Content + toolbar ── */
+  .dg-content::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 79px,
+      rgba(116, 176, 110, 0.025) 79px,
+      rgba(116, 176, 110, 0.025) 80px
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .dg-toolbar {
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(2px);
+  }
+
+  .dg-content-area::-webkit-scrollbar {
+    width: 4px;
+  }
+  .dg-content-area::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .dg-content-area::-webkit-scrollbar-thumb {
+    background: #243324;
+    border-radius: 2px;
+  }
+
+  /* ── Toolbar buttons ── */
+  .dg-toolbar-btn {
+    color: #567c52;
+    background: none;
+    border: 1px solid rgba(116, 176, 110, 0.25);
+  }
+
+  .dg-toolbar-btn:hover {
+    color: #74b06e;
+    border-color: #385435;
+    background: rgba(116, 176, 110, 0.06);
+  }
+
+  .dg-toolbar-btn-primary {
+    color: #74b06e;
+    border-color: #385435;
+    background: rgba(116, 176, 110, 0.06);
+  }
+
+  .dg-toolbar-btn-primary:hover {
+    background: rgba(116, 176, 110, 0.12);
+    border-color: #567c52;
+    box-shadow: 0 0 12px rgba(116, 176, 110, 0.1);
+  }
+
+  /* ── "+ NEW RECORD" / user-menu dropdown panel ── */
+  .dg-new-record-dropdown {
+    background: #0f0f0e;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+  }
+
+  .dg-dropdown-item:hover:not(:disabled) {
+    background: rgba(116, 176, 110, 0.08);
+  }
+}
