@@ -24,4 +24,4 @@ dist-ssr
 *.sw?
 
 # Supabase CLI local state
-supabase/.temp/
+supabase/.temp/.env.smoke
