@@ -1,5 +1,32 @@
+/**
+ * Sign-up screen. Public route at `/signup`.
+ *
+ * - Email + password + confirm-password fields with inline validation.
+ * - Form-level error banner for Supabase failures.
+ * - On success: if email confirmation is enabled (Supabase setting), we
+ *   show a "check your email" notice. If it's disabled, the new user is
+ *   already signed in and we navigate straight into the app.
+ *
+ * Note: Phase 1 launch concerns include SMTP for Supabase Auth (see
+ * the handoff doc). Until that's configured, email-confirmation links
+ * arrive from Supabase's default sender — which works but is rate-limited.
+ * That's an infra concern, not something this screen worries about.
+ */
+
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
+
+import { AuthAlert } from '@/components/auth/AuthAlert';
+import { AuthFormField } from '@/components/auth/AuthFormField';
+import { AuthShell } from '@/components/auth/AuthShell';
+import { AuthSubmitButton } from '@/components/auth/AuthSubmitButton';
+import {
+  MIN_PASSWORD_LENGTH,
+  friendlyAuthError,
+  validateEmail,
+  validatePassword,
+  validatePasswordConfirmation,
+} from '@/components/auth/validation';
 import { useAuth } from '@/contexts/AuthContext';
 
 export function SignupPage() {
@@ -8,8 +35,14 @@ export function SignupPage() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState(false);
 
   if (!loading && session) {
@@ -18,15 +51,22 @@ export function SignupPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
+
+    const eErr = validateEmail(email);
+    const pErr = validatePassword(password);
+    const cErr = validatePasswordConfirmation(password, confirm);
+    setEmailError(eErr);
+    setPasswordError(pErr);
+    setConfirmError(cErr);
+    setFormError(null);
+    if (eErr || pErr || cErr) return;
+
     setSubmitting(true);
-
-    const result = await signUp(email, password);
-
+    const result = await signUp(email.trim(), password);
     setSubmitting(false);
 
     if (!result.ok) {
-      setError(result.error?.message ?? 'Sign-up failed.');
+      setFormError(friendlyAuthError(result.error));
       return;
     }
 
@@ -35,71 +75,121 @@ export function SignupPage() {
       return;
     }
 
-    // Email confirmation disabled → user is already signed in.
+    // Email confirmation disabled in Supabase → the new user is already
+    // signed in. Drop them into the app.
     navigate('/', { replace: true });
   }
 
   if (pendingConfirmation) {
     return (
-      <div style={{ maxWidth: 360, margin: '4rem auto', fontFamily: 'sans-serif' }}>
-        <h1>Check your email</h1>
-        <p>
-          We sent a confirmation link to <strong>{email}</strong>. Click the link to activate
-          your account, then come back and{' '}
-          <Link to="/login">sign in</Link>.
-        </p>
-      </div>
+      <AuthShell
+        title="Check your email"
+        subtitle="Pending verification"
+        footer={
+          <span>
+            Already verified?{' '}
+            <Link
+              to="/login"
+              className="text-green-accent uppercase tracking-[0.16em] hover:text-green-glow transition-colors"
+            >
+              Sign in
+            </Link>
+          </span>
+        }
+      >
+        <AuthAlert variant="notice" title="Transmission Sent">
+          A confirmation link has been dispatched to{' '}
+          <span className="text-green-accent">{email}</span>. Activate your
+          clearance by following the link, then return here to sign in.
+        </AuthAlert>
+      </AuthShell>
     );
   }
 
   return (
-    <div style={{ maxWidth: 360, margin: '4rem auto', fontFamily: 'sans-serif' }}>
-      <h1>Sign up</h1>
+    <AuthShell
+      title="Request Access"
+      subtitle="Create a new case file"
+      footer={
+        <span>
+          Already cleared?{' '}
+          <Link
+            to="/login"
+            className="text-green-accent uppercase tracking-[0.16em] hover:text-green-glow transition-colors"
+          >
+            Sign in
+          </Link>
+        </span>
+      }
+    >
+      {formError ? (
+        <AuthAlert variant="error" title="Registration Error">
+          {formError}
+        </AuthAlert>
+      ) : null}
 
       <form onSubmit={onSubmit} noValidate>
-        <div style={{ marginBottom: 12 }}>
-          <label htmlFor="email">Email</label>
-          <br />
-          <input
-            id="email"
-            type="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={{ width: '100%' }}
-          />
-        </div>
+        <AuthFormField
+          label="Email"
+          type="email"
+          name="email"
+          autoComplete="email"
+          required
+          value={email}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (emailError) setEmailError(null);
+          }}
+          onBlur={() => setEmailError(validateEmail(email))}
+          error={emailError}
+          placeholder="agent@deltagreen.local"
+          disabled={submitting}
+        />
 
-        <div style={{ marginBottom: 12 }}>
-          <label htmlFor="password">Password (min 6 characters)</label>
-          <br />
-          <input
-            id="password"
-            type="password"
-            autoComplete="new-password"
-            minLength={6}
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={{ width: '100%' }}
-          />
-        </div>
+        <AuthFormField
+          label="Password"
+          type="password"
+          name="password"
+          autoComplete="new-password"
+          minLength={MIN_PASSWORD_LENGTH}
+          required
+          value={password}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            if (passwordError) setPasswordError(null);
+            // If the confirm field has a mismatch error, re-check it as
+            // the user fixes the password — saves a redundant tab.
+            if (confirmError) {
+              setConfirmError(validatePasswordConfirmation(e.target.value, confirm));
+            }
+          }}
+          error={passwordError}
+          hint={`Minimum ${MIN_PASSWORD_LENGTH} characters`}
+          disabled={submitting}
+        />
 
-        {error && (
-          <p role="alert" style={{ color: 'crimson' }}>
-            {error}
-          </p>
-        )}
+        <AuthFormField
+          label="Confirm Password"
+          type="password"
+          name="confirm-password"
+          autoComplete="new-password"
+          required
+          value={confirm}
+          onChange={(e) => {
+            setConfirm(e.target.value);
+            if (confirmError) setConfirmError(null);
+          }}
+          onBlur={() => setConfirmError(validatePasswordConfirmation(password, confirm))}
+          error={confirmError}
+          disabled={submitting}
+        />
 
-        <button type="submit" disabled={submitting}>
-          {submitting ? 'Creating account…' : 'Sign up'}
-        </button>
+        <AuthSubmitButton
+          label="Create Account"
+          loadingLabel="Filing request…"
+          loading={submitting}
+        />
       </form>
-
-      <p style={{ marginTop: 16 }}>
-        Already have an account? <Link to="/login">Sign in</Link>
-      </p>
-    </div>
+    </AuthShell>
   );
 }

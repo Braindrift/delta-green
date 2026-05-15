@@ -30,6 +30,19 @@ type AuthContextValue = {
   signUp: (email: string, password: string) => Promise<SignUpResult>;
   signIn: (email: string, password: string) => Promise<AuthActionResult>;
   signOut: () => Promise<AuthActionResult>;
+  /**
+   * Trigger the Supabase "send recovery email" flow. The email contains a
+   * one-time link that, when clicked, opens the app at
+   * `/reset-password/confirm` with a `PASSWORD_RECOVERY` session — at that
+   * point the user can call `updatePassword` to set a new one.
+   */
+  requestPasswordReset: (email: string) => Promise<AuthActionResult>;
+  /**
+   * Set a new password for the currently-signed-in user. Used by the
+   * reset-password confirm flow once the recovery link has put us in a
+   * password-recovery session.
+   */
+  updatePassword: (newPassword: string) => Promise<AuthActionResult>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -50,6 +63,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // 2. Subscribe to all subsequent changes (login, logout, token refresh,
     //    cross-tab sync). This is what makes session persistence "just work".
+    //
+    //    Note: the `PASSWORD_RECOVERY` event also flows through here when
+    //    the user lands from a recovery email link. We don't special-case
+    //    it — the recovery session looks like any other session, and the
+    //    `/reset-password/confirm` route is what gates the password-change
+    //    UI behind it.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
@@ -89,6 +108,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       async signOut() {
         const { error } = await supabase.auth.signOut();
+        return { ok: !error, error };
+      },
+
+      async requestPasswordReset(email) {
+        // The `redirectTo` decides where Supabase sends the user when they
+        // click the link in the email. We point at the confirm route on
+        // the current origin — works in dev (`http://localhost:5173`) and
+        // in production (`https://delta-green-fawn.vercel.app`) without
+        // any env config. The URL must be on the allow-list in the
+        // Supabase dashboard's Auth → URL Configuration page.
+        const redirectTo = `${window.location.origin}/reset-password/confirm`;
+        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+        return { ok: !error, error };
+      },
+
+      async updatePassword(newPassword) {
+        const { error } = await supabase.auth.updateUser({ password: newPassword });
         return { ok: !error, error };
       },
     }),

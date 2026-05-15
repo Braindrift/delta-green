@@ -5,6 +5,8 @@ import { DEFAULT_NAV_PATH } from '@/components/layout/navConfig';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { LoginPage } from '@/pages/LoginPage';
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
+import { ResetPasswordRequestPage } from '@/pages/ResetPasswordRequestPage';
 import {
   AgentsPage,
   ArtifactsPage,
@@ -28,10 +30,17 @@ import { SignupPage } from '@/pages/SignupPage';
 /**
  * Route table.
  *
- * The `/login` and `/signup` routes are public. Everything else is
- * gated behind `<ProtectedRoute>` and rendered inside the `AppLayout`
- * shell via nested routing — each leaf page is an `<Outlet>` child of
- * the layout.
+ * The auth screens (`/login`, `/signup`, `/reset-password`,
+ * `/reset-password/confirm`) are public. Everything else is gated behind
+ * `<ProtectedRoute>` and rendered inside the `AppLayout` shell via
+ * nested routing — each leaf page is an `<Outlet>` child of the layout.
+ *
+ * `/reset-password/confirm` is intentionally public even though it
+ * requires a session — specifically, the `PASSWORD_RECOVERY` session
+ * created by Supabase when the user follows the recovery email link.
+ * That session is set up before this route renders; the page itself
+ * gates the form behind `session != null` and points the user back at
+ * the request flow if they got here without one.
  *
  * The leaf paths exactly mirror `NAV_GROUPS` in `navConfig.ts`, which is
  * the single source of truth for both sidebar links and routes.
@@ -44,8 +53,11 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          {/* Public auth routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/reset-password" element={<ResetPasswordRequestPage />} />
+          <Route path="/reset-password/confirm" element={<ResetPasswordPage />} />
 
           <Route
             element={
