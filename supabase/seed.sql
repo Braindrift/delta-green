@@ -18,6 +18,8 @@ declare
   v_loc_id     uuid;
   v_org_id     uuid;
   v_incident_id uuid;
+  v_pc_unassigned_id uuid;
+  v_pc_active_id     uuid;
 begin
 
   -- --------------------------------------------------------
@@ -185,6 +187,49 @@ begin
   -- Operation linked to Agent
   insert into linked_records (campaign_id, record_id_a, record_id_b)
   values (v_campaign, v_op_id, v_agent_id);
+
+  -- --------------------------------------------------------
+  -- Player characters
+  -- --------------------------------------------------------
+  -- Unassigned PC sitting in the owner's roster, no campaign attached.
+  insert into player_characters (
+    id, owner_id, campaign_id, name, archetype, status, data
+  )
+  values (
+    gen_random_uuid(),
+    v_user_id,
+    null,
+    'Marcus Reeves',
+    'Federal Agent',
+    'unassigned',
+    '{
+      "stats": { "hp": 11, "wp": 12, "san": 60, "bp": 60 },
+      "bonds": [],
+      "notes": "Drafted between campaigns. Background still in flux."
+    }'
+  )
+  returning id into v_pc_unassigned_id;
+
+  -- Active PC attached to the campaign — what the user is currently playing.
+  insert into player_characters (
+    id, owner_id, campaign_id, name, archetype, status, data
+  )
+  values (
+    gen_random_uuid(),
+    v_user_id,
+    v_campaign,
+    'Sandra Kovac',
+    'Paramedic',
+    'active',
+    '{
+      "stats": { "hp": 10, "wp": 11, "san": 55, "bp": 55 },
+      "bonds": [
+        { "name": "Daniel Kovac", "relation": "Brother", "score": 4 }
+      ],
+      "notes": "Joined the cell after the Cavendish mass-auditory event."
+    }'
+  )
+  returning id into v_pc_active_id;
 
   -- --------------------------------------------------------
   -- Session log
