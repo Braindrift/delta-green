@@ -32,7 +32,7 @@ export type NavItemCountSource =
   | { kind: 'type-status'; type: 'operation'; status: OperationStatus };
 
 export type NavItem = {
-  /** URL path under the protected root, e.g. `/operations/active`. */
+  /** Relative URL segment under the campaign shell, e.g. `operations/active`. */
   path: string;
   /** Sidebar label, exactly as rendered. Case-sensitive. */
   label: string;
@@ -56,25 +56,25 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     label: 'Operations',
     items: [
       {
-        path: '/operations',
+        path: 'operations',
         label: 'All Operations',
         breadcrumb: 'ALL OPERATIONS',
         countSource: { kind: 'derived-operations-all' },
       },
       {
-        path: '/operations/active',
+        path: 'operations/active',
         label: 'Active',
         breadcrumb: 'ACTIVE OPERATIONS',
         countSource: { kind: 'type-status', type: 'operation', status: 'active' },
       },
       {
-        path: '/operations/closed',
+        path: 'operations/closed',
         label: 'Closed',
         breadcrumb: 'CLOSED OPERATIONS',
         countSource: { kind: 'type-status', type: 'operation', status: 'closed' },
       },
       {
-        path: '/operations/compromised',
+        path: 'operations/compromised',
         label: 'Compromised',
         breadcrumb: 'COMPROMISED OPERATIONS',
         countSource: { kind: 'type-status', type: 'operation', status: 'compromised' },
@@ -86,25 +86,25 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     label: 'Subjects',
     items: [
       {
-        path: '/subjects/agents',
+        path: 'subjects/agents',
         label: 'Agents',
         breadcrumb: 'AGENTS',
         countSource: { kind: 'type', type: 'agent' },
       },
       {
-        path: '/subjects/civilians',
+        path: 'subjects/civilians',
         label: 'Civilians',
         breadcrumb: 'CIVILIANS',
         countSource: { kind: 'type', type: 'civilian' },
       },
       {
-        path: '/subjects/poi',
+        path: 'subjects/poi',
         label: 'Persons of Interest',
         breadcrumb: 'PERSONS OF INTEREST',
         countSource: { kind: 'type', type: 'poi' },
       },
       {
-        path: '/subjects/unnatural',
+        path: 'subjects/unnatural',
         label: 'Unnatural',
         breadcrumb: 'UNNATURAL',
         countSource: { kind: 'type', type: 'unnatural' },
@@ -116,25 +116,25 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     label: 'Entities',
     items: [
       {
-        path: '/entities/organisations',
+        path: 'entities/organisations',
         label: 'Organisations',
         breadcrumb: 'ORGANISATIONS',
         countSource: { kind: 'type', type: 'organisation' },
       },
       {
-        path: '/entities/locations',
+        path: 'entities/locations',
         label: 'Locations',
         breadcrumb: 'LOCATIONS',
         countSource: { kind: 'type', type: 'location' },
       },
       {
-        path: '/entities/assets',
+        path: 'entities/assets',
         label: 'Assets',
         breadcrumb: 'ASSETS',
         countSource: { kind: 'type', type: 'asset' },
       },
       {
-        path: '/entities/artifacts',
+        path: 'entities/artifacts',
         label: 'Artifacts & Objects',
         breadcrumb: 'ARTIFACTS & OBJECTS',
         countSource: { kind: 'type', type: 'artifact' },
@@ -146,25 +146,25 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     label: 'Events',
     items: [
       {
-        path: '/events',
+        path: 'events',
         label: 'All Events',
         breadcrumb: 'ALL EVENTS',
         countSource: { kind: 'derived-events-all' },
       },
       {
-        path: '/events/incidents',
+        path: 'events/incidents',
         label: 'Incidents',
         breadcrumb: 'INCIDENTS',
         countSource: { kind: 'type', type: 'incident' },
       },
       {
-        path: '/events/headlines',
+        path: 'events/headlines',
         label: 'Headlines',
         breadcrumb: 'HEADLINES',
         countSource: { kind: 'type', type: 'headline' },
       },
       {
-        path: '/events/globalaffairs',
+        path: 'events/globalaffairs',
         label: 'Global Affairs',
         breadcrumb: 'GLOBAL AFFAIRS',
         countSource: { kind: 'type', type: 'global_affair' },
@@ -180,5 +180,14 @@ export const NAV_GROUPS: readonly NavGroup[] = [
  */
 export const NAV_ITEMS: readonly NavItem[] = NAV_GROUPS.flatMap((g) => g.items);
 
-/** The first nav path — used as the landing target when the user hits `/`. */
-export const DEFAULT_NAV_PATH = '/operations';
+/** The default nav segment — used as the landing target inside a campaign. */
+export const DEFAULT_NAV_SEGMENT = 'operations';
+
+/**
+ * Build the absolute URL for a nav segment inside a specific campaign.
+ *
+ * @example campaignPath('abc-123', 'subjects/agents') → '/campaigns/abc-123/subjects/agents'
+ */
+export function campaignPath(campaignId: string, segment: string): string {
+  return `/campaigns/${campaignId}/${segment}`;
+}

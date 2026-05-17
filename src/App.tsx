@@ -1,10 +1,11 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import { AppLayout } from '@/components/layout/AppLayout';
-import { DEFAULT_NAV_PATH } from '@/components/layout/navConfig';
+import { DEFAULT_NAV_SEGMENT } from '@/components/layout/navConfig';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { LoginPage } from '@/pages/LoginPage';
+import { CampaignsIndexPage } from '@/pages/CampaignsIndexPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { ResetPasswordRequestPage } from '@/pages/ResetPasswordRequestPage';
 import {
@@ -30,23 +31,20 @@ import { SignupPage } from '@/pages/SignupPage';
 /**
  * Route table.
  *
- * The auth screens (`/login`, `/signup`, `/reset-password`,
- * `/reset-password/confirm`) are public. Everything else is gated behind
- * `<ProtectedRoute>` and rendered inside the `AppLayout` shell via
- * nested routing — each leaf page is an `<Outlet>` child of the layout.
+ * Auth screens are public. Authenticated routes split into two protected
+ * subtrees:
  *
- * `/reset-password/confirm` is intentionally public even though it
- * requires a session — specifically, the `PASSWORD_RECOVERY` session
- * created by Supabase when the user follows the recovery email link.
- * That session is set up before this route renders; the page itself
- * gates the form behind `session != null` and points the user back at
- * the request flow if they got here without one.
+ *   `/campaigns`            — workspace landing (placeholder until R-3).
+ *                             Auto-redirects to the user's first campaign.
+ *   `/campaigns/:campaignId` — campaign shell. `AppLayout` mounts
+ *                              `CampaignProvider` + `CampaignGuard` so every
+ *                              descendant has a guaranteed non-null campaign.
  *
- * The leaf paths exactly mirror `NAV_GROUPS` in `navConfig.ts`, which is
- * the single source of truth for both sidebar links and routes.
+ * `/` always redirects to `/campaigns`, which handles auth and the
+ * first-campaign redirect in one hop.
  *
- * `/` redirects to the first nav path (currently `/operations` — all
- * operations). Unknown paths under the protected tree bounce there too.
+ * The leaf paths mirror `NAV_GROUPS` in `navConfig.ts`, which is the single
+ * source of truth for sidebar links and the route table.
  */
 function App() {
   return (
@@ -59,15 +57,27 @@ function App() {
           <Route path="/reset-password" element={<ResetPasswordRequestPage />} />
           <Route path="/reset-password/confirm" element={<ResetPasswordPage />} />
 
+          {/* Workspace landing — placeholder until R-3 */}
           <Route
+            path="/campaigns"
+            element={
+              <ProtectedRoute>
+                <CampaignsIndexPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Campaign shell */}
+          <Route
+            path="/campaigns/:campaignId"
             element={
               <ProtectedRoute>
                 <AppLayout />
               </ProtectedRoute>
             }
           >
-            {/* Default landing — bounce to the first nav leaf. */}
-            <Route index element={<Navigate to={DEFAULT_NAV_PATH} replace />} />
+            {/* Default: bounce to the first nav leaf. */}
+            <Route index element={<Navigate to={DEFAULT_NAV_SEGMENT} replace />} />
 
             {/* Operations */}
             <Route path="operations" element={<OperationsAllPage />} />
@@ -93,12 +103,14 @@ function App() {
             <Route path="events/headlines" element={<HeadlinesPage />} />
             <Route path="events/globalaffairs" element={<GlobalAffairsPage />} />
 
-            {/* Any unmatched authenticated path → land on the default. */}
-            <Route path="*" element={<Navigate to={DEFAULT_NAV_PATH} replace />} />
+            {/* Unknown campaign-scoped path → default leaf. */}
+            <Route path="*" element={<Navigate to={DEFAULT_NAV_SEGMENT} replace />} />
           </Route>
 
-          {/* Anything else (unauthenticated unknown path) → root, which
-              bounces to /login if no session, or to the default nav. */}
+          {/* Root → workspace landing (which bounces to first campaign). */}
+          <Route index element={<Navigate to="/campaigns" replace />} />
+
+          {/* Any other path → root. */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>

@@ -7,4 +7,4 @@
  * from here.
  */
 
-export { getCampaignById } from './queries';
+export { getCampaignById, listCampaigns } from './queries';
