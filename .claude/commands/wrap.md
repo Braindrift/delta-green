@@ -11,10 +11,26 @@ that pattern, ask which ticket we're wrapping.
 
 Run in order. Pause at the marked checkpoints.
 
+## 0. Pre-flight: tools sanity check
+
+Run one command to verify the tools this flow needs:
+
+```bash
+which gh && which git && (which npx || echo "npx missing")
+```
+
+If `gh` is missing, **skip to the manual PR path in step 5** (don't try
+`gh pr create` and watch it fail). If `git` is missing, abort — something
+is very wrong. If `npx` is missing and this is a migration ticket, abort
+and tell Erik to fix node/npm.
+
+Don't narrate this check unless something fails. If everything passes,
+move silently to step 1.
+
 ## 1. Pre-flight checks (auto, no pause)
 
 - `git status` — confirm only the expected files are modified.
-- `npm run lint` (if it exists) and `tsc --noEmit` for TS work.
+- `npm run lint` (if it exists) and `npx tsc --noEmit` for TS work.
 - For schema work: re-read the migration once for a final sanity-check
   (no `BEGIN`/`COMMIT` wrappers, idempotent where it should be, comment
   block explains load-bearing changes).
@@ -48,15 +64,57 @@ the SQL as fenced blocks for manual paste, and flag the MCP issue.
   cleaner version of it.
 - `git push -u origin <current branch>`.
 
-## 5. Open the PR (auto, no pause)
+## 5. Open the PR
 
-`gh pr create` with:
+**The branch is now pushed. From here, the path depends on `gh` availability.**
 
-- Title: `DEL-XX: <one-line summary>`
-- Body: the PR body template from `ticket-workflow` skill, filled in.
-- Ends with `Closes DEL-XX` so Linear auto-closes on merge.
+### Path A — `gh` is available
 
-Show the PR URL.
+Write the PR body to a temp file first, then create the PR via
+`--body-file`. **Never inline a multi-line markdown body** (it fails
+across shells; see CLAUDE.md for the rule).
+
+```bash
+# Ensure tmp/ exists and is gitignored
+mkdir -p tmp
+grep -qxF "tmp/" .gitignore 2>/dev/null || echo "tmp/" >> .gitignore
+
+# Write the PR body
+cat > tmp/pr-body.md << 'EOF'
+## Summary
+
+- <bullet>
+- <bullet>
+
+Closes DEL-XX
+EOF
+
+gh pr create \
+  --title "DEL-XX: <one-line summary>" \
+  --body-file tmp/pr-body.md
+
+# Clean up
+rm tmp/pr-body.md
+```
+
+Use the PR body template from `ticket-workflow`. Show the PR URL on
+success.
+
+### Path B — `gh` not available (caught in step 0)
+
+Don't try `gh`. Output:
+
+> "**`gh` not on PATH — open the PR in the browser:**
+> https://github.com/Braindrift/delta-green/pull/new/sjoblomerik/del-XX-...
+>
+> Suggested title: `DEL-XX: <one-line summary>`
+> Suggested body (copy from below):"
+>
+> ```markdown
+> <full PR body>
+> ```
+
+Then proceed to step 6. Erik will open the PR himself.
 
 ## 6. Merge (PAUSE — ask first)
 
@@ -64,22 +122,43 @@ This is on the ask-first list. Wait for Erik's explicit go-ahead before
 running `gh pr merge --squash`. Confirm Vercel preview deploy is green
 before merging (or ask Erik to check).
 
+**If step 5 went down path B (no `gh`)**, Erik will merge in the browser.
+Wait for his confirmation that the merge landed before moving to step 7.
+
 ## 7. Linear update (auto for status, PAUSE for close)
 
-- Set the issue to `In Review` if it isn't already, with the PR link as
-  a comment.
-- After merge confirmation: ask before flipping the issue to `Done`. Linear
-  closes are on the ask-first list.
+**Only after the PR exists** (either created via `gh` in step 5A, or
+confirmed by Erik in step 5B):
 
-## 8. Session Handoff paste-text (auto, last step)
+- Set the issue to `In Review` if it isn't already, with the PR link as a
+  comment.
+
+**After merge confirmation**:
+
+- Ask before flipping the issue to `Done`. Linear closes are on the
+  ask-first list.
+
+Do not flip Linear to `In Review` before the PR is open. Status changes
+must reflect reality, not intent.
+
+## 8. Session Handoff paste-text (auto)
 
 Output a fenced block titled `Session Handoff entry — paste into Linear`.
 Use the template from `ticket-workflow`. Keep it tight — roughly the size
 of the DEL-33 / DEL-34 entries: 10-20 lines of markdown.
 
+**Important: the handoff text describes what *shipped*, not what went
+sideways in this session.** Tool failures, recovery steps, scope debates
+— none of that goes here. Those belong in step 9.
+
 Do **not** write to the Session Handoff document directly. Erik pastes it.
 
 ## 9. Wrap-up summary
 
-A short bullet list: what shipped, what's flagged for follow-up, suggested
-next ticket (one line of reasoning, not a paragraph).
+A short bullet list:
+
+- What shipped (one line)
+- What's flagged for follow-up
+- Any issues that came up this session (tool failures, manual steps Erik
+  still needs to do, etc.) — separate from the handoff block above
+- Suggested next ticket (one line of reasoning, not a paragraph)
