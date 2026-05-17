@@ -17,17 +17,26 @@
  *  - **User menu** replaces the prototype's lack of one.
  */
 
-import { useLocation } from 'react-router-dom';
+import { useLocation, useMatch } from 'react-router-dom';
 
 import { NAV_ITEMS } from '@/components/layout/navConfig';
 import { NewRecordMenu } from '@/components/layout/NewRecordMenu';
 import { UserMenu } from '@/components/layout/UserMenu';
+import { useCurrentCampaign } from '@/contexts/CampaignContext';
 import type { RecordType } from '@/types/records';
 
 export function Toolbar() {
   const location = useLocation();
-  const navItem = NAV_ITEMS.find((it) => it.path === location.pathname);
-  const breadcrumb = navItem?.breadcrumb ?? location.pathname.toUpperCase();
+  // Extract the segment after /campaigns/:campaignId/ for nav lookups.
+  const match = useMatch('/campaigns/:campaignId/*');
+  const segment = match?.params['*'] ?? location.pathname;
+  const navItem = NAV_ITEMS.find((it) => it.path === segment);
+  const breadcrumb = navItem?.breadcrumb ?? segment.toUpperCase();
+
+  // campaign is guaranteed non-null by CampaignGuard at the AppLayout level.
+  const { campaign } = useCurrentCampaign();
+  const campaignLabel =
+    (campaign?.codename ?? campaign?.name ?? 'CAMPAIGN').toUpperCase();
 
   function onNewRecord(type: RecordType): void {
     // Wiring to the form panel arrives with DEL-17. For now, just log so
@@ -46,7 +55,8 @@ export function Toolbar() {
   return (
     <div className="dg-toolbar h-[46px] border-b border-green-dim flex items-center px-7 gap-3 flex-shrink-0 relative z-[2]">
       <div className="font-ui text-[10px] text-green-bright tracking-[0.15em] uppercase">
-        REGISTRY <span className="text-green-mid mx-[2px]">/</span>{' '}
+        {campaignLabel}{' '}
+        <span className="text-green-mid mx-[2px]">/</span>{' '}
         <span className="text-green-accent">{breadcrumb}</span>
       </div>
       <div className="ml-auto flex items-center gap-2">

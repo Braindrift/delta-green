@@ -16,9 +16,10 @@
 
 import { useMemo, useState } from 'react';
 
-import { NAV_GROUPS, NAV_ITEMS } from '@/components/layout/navConfig';
+import { campaignPath, NAV_GROUPS, NAV_ITEMS } from '@/components/layout/navConfig';
 import { SidebarNavGroup } from '@/components/layout/SidebarNavGroup';
 import { SidebarNavItem } from '@/components/layout/SidebarNavItem';
+import { useCurrentCampaign } from '@/contexts/CampaignContext';
 import { useRecordCounts } from '@/hooks/useRecordCounts';
 import { useSidebarCollapse } from '@/hooks/useSidebarCollapse';
 
@@ -26,10 +27,9 @@ export function Sidebar() {
   const [search, setSearch] = useState('');
   const { isCollapsed, toggle } = useSidebarCollapse();
 
-  // Counts: until DEL-15 wires a campaign picker, we pass `null` and every
-  // badge renders as a dash. Swap to `useCurrentCampaign()?.id ?? null`
-  // once that exists.
-  const counts = useRecordCounts(null, NAV_ITEMS);
+  // campaign is guaranteed non-null by CampaignGuard at the AppLayout level.
+  const { campaign } = useCurrentCampaign();
+  const counts = useRecordCounts(campaign?.id ?? null, NAV_ITEMS);
 
   const trimmed = search.trim().toLowerCase();
 
@@ -84,7 +84,7 @@ export function Sidebar() {
               {group.items.map((item) => (
                 <SidebarNavItem
                   key={item.path}
-                  to={item.path}
+                  to={campaign ? campaignPath(campaign.id, item.path) : '#'}
                   label={item.label}
                   count={counts[item.path] ?? null}
                 />

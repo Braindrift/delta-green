@@ -54,3 +54,20 @@ export async function getCampaignById(id: string): Promise<Result<Campaign>> {
   if (!data) return notFound();
   return ok(data as Campaign);
 }
+
+/**
+ * Fetch all campaigns the authenticated user can see (via RLS: active member,
+ * not soft-deleted). Returns an empty array when the user has no campaigns.
+ *
+ * Ordered by `created_at` ascending so the result is stable across calls.
+ */
+export async function listCampaigns(): Promise<Result<Campaign[]>> {
+  const { data, error } = await supabase
+    .from('campaigns')
+    .select('*')
+    .is('deleted_at', null)
+    .order('created_at');
+
+  if (error) return mapPostgrestError(error);
+  return ok((data ?? []) as Campaign[]);
+}
