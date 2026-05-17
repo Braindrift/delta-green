@@ -25,4 +25,9 @@ dist-ssr
 
 # Supabase CLI local state
 supabase/.temp/.env.smoke
-.env.smoke
+.env.smoke 
+# Claude Code per-user settings 
+.claude/settings.local.json 
+ 
+# Temp files for PR body construction 
+tmp/ 
