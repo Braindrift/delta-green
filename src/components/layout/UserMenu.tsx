@@ -1,13 +1,13 @@
 /**
- * Toolbar user menu — replaces the `TempAuthBar` strip that was sitting
- * above the theme-test home page in `App.tsx`.
+ * Header account dropdown — shows the signed-in email and a menu with
+ * Profile, Account Settings, Preferences (placeholder routes), and Sign Out.
  *
- * Shows the signed-in email, opens a small dropdown with a Sign Out item.
- * Per design doc §4.3 the user menu lives in the right-hand toolbar
- * cluster alongside Export/Import and "+ NEW RECORD".
+ * Lives in the header so it's persistent across both the workspace shell
+ * and the campaign shell (DEL-40).
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -36,9 +36,10 @@ export function UserMenu() {
 
   if (!user) return null;
 
-  // Show the part of the email before `@` if it's short, otherwise the
-  // full thing. Either way it's clipped by the dropdown's narrow target.
   const handle = user.email ?? 'agent';
+
+  const linkClass =
+    'dg-dropdown-item flex items-center px-[14px] py-[9px] cursor-pointer transition-colors text-left font-ui text-[10px] tracking-[0.1em] text-paper-worn uppercase no-underline';
 
   return (
     <div ref={wrapRef} className="relative">
@@ -59,6 +60,16 @@ export function UserMenu() {
           <div className="font-ui text-[10px] tracking-[0.08em] text-paper-worn px-[14px] py-2 border-b border-green-accent/[0.06] truncate">
             {user.email}
           </div>
+          <Link to="/profile" onClick={() => setOpen(false)} className={linkClass}>
+            Profile
+          </Link>
+          <Link to="/account" onClick={() => setOpen(false)} className={linkClass}>
+            Account Settings
+          </Link>
+          <Link to="/preferences" onClick={() => setOpen(false)} className={linkClass}>
+            Preferences
+          </Link>
+          <div className="border-t border-green-dim/40" />
           <button
             type="button"
             onClick={() => {

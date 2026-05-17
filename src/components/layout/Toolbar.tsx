@@ -21,7 +21,6 @@ import { useLocation, useMatch } from 'react-router-dom';
 
 import { NAV_ITEMS } from '@/components/layout/navConfig';
 import { NewRecordMenu } from '@/components/layout/NewRecordMenu';
-import { UserMenu } from '@/components/layout/UserMenu';
 import { useCurrentCampaign } from '@/contexts/CampaignContext';
 import type { RecordType } from '@/types/records';
 
@@ -75,7 +74,6 @@ export function Toolbar() {
           IMPORT
         </button>
         <NewRecordMenu onSelect={onNewRecord} />
-        <UserMenu />
       </div>
     </div>
   );

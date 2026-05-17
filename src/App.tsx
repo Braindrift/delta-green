@@ -1,11 +1,11 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
+import { WorkspaceLayout } from '@/components/layout/WorkspaceLayout';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { DEFAULT_NAV_SEGMENT } from '@/components/layout/navConfig';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { LoginPage } from '@/pages/LoginPage';
-import { CampaignsIndexPage } from '@/pages/CampaignsIndexPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { ResetPasswordRequestPage } from '@/pages/ResetPasswordRequestPage';
 import {
@@ -27,6 +27,13 @@ import {
   UnnaturalPage,
 } from '@/pages/sections';
 import { SignupPage } from '@/pages/SignupPage';
+import { CampaignsLandingPage } from '@/pages/workspace/CampaignsLandingPage';
+import { WorkspaceAgentsPage } from '@/pages/workspace/WorkspaceAgentsPage';
+import { WorkspaceNotificationsPage } from '@/pages/workspace/WorkspaceNotificationsPage';
+import { WorkspaceBrowsePage } from '@/pages/workspace/WorkspaceBrowsePage';
+import { WorkspaceProfilePage } from '@/pages/workspace/WorkspaceProfilePage';
+import { WorkspaceAccountPage } from '@/pages/workspace/WorkspaceAccountPage';
+import { WorkspacePreferencesPage } from '@/pages/workspace/WorkspacePreferencesPage';
 
 /**
  * Route table.
@@ -34,17 +41,16 @@ import { SignupPage } from '@/pages/SignupPage';
  * Auth screens are public. Authenticated routes split into two protected
  * subtrees:
  *
- *   `/campaigns`            — workspace landing (placeholder until R-3).
- *                             Auto-redirects to the user's first campaign.
- *   `/campaigns/:campaignId` — campaign shell. `AppLayout` mounts
- *                              `CampaignProvider` + `CampaignGuard` so every
- *                              descendant has a guaranteed non-null campaign.
+ *   Workspace shell  — `/`, `/agents`, `/notifications`, `/browse`, and
+ *                      account stubs. `WorkspaceLayout` renders the shared
+ *                      header + workspace sidebar.
  *
- * `/` always redirects to `/campaigns`, which handles auth and the
- * first-campaign redirect in one hop.
+ *   Campaign shell   — `/campaigns/:campaignId/*`. `AppLayout` mounts
+ *                      `CampaignProvider` + `CampaignGuard` so every
+ *                      descendant has a guaranteed non-null campaign.
  *
- * The leaf paths mirror `NAV_GROUPS` in `navConfig.ts`, which is the single
- * source of truth for sidebar links and the route table.
+ * The leaf paths in the campaign shell mirror `NAV_GROUPS` in `navConfig.ts`,
+ * the single source of truth for sidebar links.
  */
 function App() {
   return (
@@ -57,15 +63,22 @@ function App() {
           <Route path="/reset-password" element={<ResetPasswordRequestPage />} />
           <Route path="/reset-password/confirm" element={<ResetPasswordPage />} />
 
-          {/* Workspace landing — placeholder until R-3 */}
+          {/* Workspace shell */}
           <Route
-            path="/campaigns"
             element={
               <ProtectedRoute>
-                <CampaignsIndexPage />
+                <WorkspaceLayout />
               </ProtectedRoute>
             }
-          />
+          >
+            <Route index element={<CampaignsLandingPage />} />
+            <Route path="agents" element={<WorkspaceAgentsPage />} />
+            <Route path="notifications" element={<WorkspaceNotificationsPage />} />
+            <Route path="browse" element={<WorkspaceBrowsePage />} />
+            <Route path="profile" element={<WorkspaceProfilePage />} />
+            <Route path="account" element={<WorkspaceAccountPage />} />
+            <Route path="preferences" element={<WorkspacePreferencesPage />} />
+          </Route>
 
           {/* Campaign shell */}
           <Route
@@ -107,8 +120,8 @@ function App() {
             <Route path="*" element={<Navigate to={DEFAULT_NAV_SEGMENT} replace />} />
           </Route>
 
-          {/* Root → workspace landing (which bounces to first campaign). */}
-          <Route index element={<Navigate to="/campaigns" replace />} />
+          {/* /campaigns (old workspace landing) → root */}
+          <Route path="/campaigns" element={<Navigate to="/" replace />} />
 
           {/* Any other path → root. */}
           <Route path="*" element={<Navigate to="/" replace />} />
