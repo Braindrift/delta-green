@@ -1,14 +1,13 @@
 /**
- * The application header strip — decorative, no interactivity.
+ * Shared application header — persistent across both the workspace shell
+ * and the campaign shell (DEL-40).
  *
  * Per design doc §4.1: DG seal, program title, classification badge,
- * "SECURE CONNECTION" status dot with a pulsing animation. Fixed 54px
- * (`h-[54px]`), static across every authenticated view.
- *
- * Visual elements that needed CSS that Tailwind utilities can't express
- * cleanly (the gradient underline, the radial-gradient inside the seal,
- * the keyframed pulse) live in `index.css` under `@layer components`.
+ * "SECURE CONNECTION" status dot. The account dropdown (UserMenu) is
+ * mounted here so it's always reachable regardless of which shell is active.
  */
+
+import { UserMenu } from '@/components/layout/UserMenu';
 
 export function Header() {
   return (
@@ -44,6 +43,10 @@ export function Header() {
           <span className="dg-status-dot inline-block w-[5px] h-[5px] rounded-full bg-green-accent mr-[7px]" />
           SECURE CONNECTION
         </div>
+
+        {/* Account dropdown — Profile / Account Settings / Preferences / Sign Out */}
+        <div className="w-px h-4 dg-header-divider" />
+        <UserMenu />
       </div>
     </header>
   );
