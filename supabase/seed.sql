@@ -29,6 +29,28 @@ declare
 begin
 
   -- --------------------------------------------------------
+  -- User profiles (DEL-37)
+  -- --------------------------------------------------------
+  -- The `on_auth_user_created` trigger fires when each auth.users row
+  -- is created via the Supabase dashboard, so a profile already
+  -- exists by the time this seed runs. We upsert here to pin
+  -- deterministic usernames for local development (otherwise the
+  -- usernames are derived from whatever email you used to create the
+  -- test accounts, which varies per developer).
+  --
+  -- `on conflict do update` keeps reruns idempotent. If you ever
+  -- start from a cleanly reset DB where the trigger hasn't fired
+  -- (e.g. you manually inserted into auth.users via SQL), the bare
+  -- INSERT path still works.
+  insert into user_profiles (user_id, username)
+  values
+    (v_user_id,        'handler'),
+    (v_former_user_id, 'formeragent')
+  on conflict (user_id) do update
+    set username   = excluded.username,
+        updated_at = now();
+
+  -- --------------------------------------------------------
   -- Campaign
   -- --------------------------------------------------------
   insert into campaigns (id, owner_id, name, codename, description)
