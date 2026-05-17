@@ -25,3 +25,4 @@ dist-ssr
 
 # Supabase CLI local state
 supabase/.temp/.env.smoke
+.env.smoke
