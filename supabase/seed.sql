@@ -6,10 +6,16 @@
 -- Auth dashboard first, then paste their UUID below.
 -- ============================================================
 
--- Replace with a real user UUID from your Supabase Auth dashboard
+-- Replace both placeholder UUIDs with real Supabase Auth user IDs.
+-- `v_user_id` is the campaign owner (becomes the Handler/GM via trigger).
+-- `v_former_user_id` is a second user who will be seeded as a `former`
+-- player member so the soft-leave RLS cut-off can be exercised locally.
+-- The second user must exist in auth.users before this seed runs; create
+-- them via the Supabase Auth dashboard the same way as the first.
 do $$
 declare
-  v_user_id    uuid := 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'; -- REPLACE ME
+  v_user_id        uuid := 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'; -- REPLACE ME
+  v_former_user_id uuid := 'bbbbbbbb-cccc-dddd-eeee-ffffffffffff'; -- REPLACE ME
   v_campaign   uuid;
   v_member_id  uuid;
   v_op_id      uuid;
@@ -40,6 +46,24 @@ begin
   select id into v_member_id
   from campaign_members
   where campaign_id = v_campaign and user_id = v_user_id;
+
+  -- --------------------------------------------------------
+  -- Former member (DEL-36) — demonstrates soft-leave state.
+  -- This row exercises the `status = 'former'` branch of the
+  -- updated `is_campaign_member` / `is_campaign_gm` helpers. When
+  -- authenticated as v_former_user_id, no records / sessions /
+  -- linked_records / campaign rows should be visible for this campaign.
+  -- --------------------------------------------------------
+  insert into campaign_members (
+    campaign_id, user_id, role, status, left_at
+  )
+  values (
+    v_campaign,
+    v_former_user_id,
+    'player',
+    'former',
+    now() - interval '7 days'
+  );
 
   -- --------------------------------------------------------
   -- Operation record
