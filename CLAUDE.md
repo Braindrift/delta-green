@@ -24,7 +24,7 @@ rather than ambient state.
 ## Reference URLs
 
 - Repo: <https://github.com/Braindrift/delta-green>
-- Supabase: <https://supabase.com/dashboard/project/ijfrouzzfnsqbundknug>
+- Supabase project ref: `ijfrouzzfnsqbundknug` ([dashboard](https://supabase.com/dashboard/project/ijfrouzzfnsqbundknug))
 - Vercel: <https://vercel.com/braindrift-s-projects/delta-green>
 - Linear board: <https://linear.app/deltagreen/team/DEL/active>
 - Design doc: <https://linear.app/deltagreen/document/design-document-delta-green-web-app-2e21e799fc36>
@@ -32,12 +32,31 @@ rather than ambient state.
 
 ---
 
+## Dev environment (confirmed installed)
+
+Erik's machine has these tools on PATH — don't second-guess them:
+
+| Tool | How to call it | Notes |
+|---|---|---|
+| `node`, `npm` | direct (`node`, `npm`) | Global install |
+| `git` | direct (`git`) | Global install |
+| `gh` | direct (`gh`) | GitHub CLI, authed |
+| Supabase CLI | **`npx supabase`** | NOT a global install — repo convention is `npx supabase ...` always |
+
+**Local Supabase / Docker is not Erik's workflow.** He works directly
+against the linked remote project. Never suggest `npx supabase start`,
+`supabase db reset` against local, or anything that requires the Docker
+stack. The CLI is linked to project ref `ijfrouzzfnsqbundknug`; commands
+like `npx supabase db push`, `npx supabase migration list --linked`, and
+`npx supabase projects list` all work against the remote.
+
+Repo path on Windows: `E:\Projects\ProjectsWebApps\delta-green`.
+
+---
+
 ## How we work
 
-The repo is your filesystem. There's no zip snapshot, no Downloads folder
-dance — write files directly, run commands directly. Local path is
-`E:\Projects\ProjectsWebApps\delta-green` on Windows; you're already there
-when the session starts.
+The repo is your filesystem. Write files directly, run commands directly.
 
 ### Slash commands
 
@@ -63,13 +82,14 @@ Auto-approved (just do it):
 - Linear reads (`get_issue`, `list_issues`, `get_document`)
 - Linear writes that *create or update* issues (status changes, descriptions,
   comments, sub-task creation)
+- `gh pr create` (creating a PR — merging is separate)
 
 Ask first:
 
 - `git push --force`, `git checkout main`, anything touching `main` directly
 - `gh pr merge` (any merge, squash or otherwise)
 - `npx supabase db push` (schema changes against the remote project)
-- `npx supabase db reset` or any destructive Supabase command
+- Any destructive Supabase command
 - Linear issue closes (state → Done) and any **document** writes
 - Deleting branches, files outside the repo, or anything irreversible
 
@@ -86,6 +106,39 @@ wait.
 Output budget for the planning phase of a typical ticket: ≤ 30 lines before
 the first user response. If a plan needs more than that, the ticket is
 probably an epic and should be flagged for breakdown.
+
+---
+
+## Multi-line PR bodies — the `--body-file` rule
+
+**Never pass a multi-line markdown body inline to `gh pr create --body`.**
+The quoting fails differently in bash, PowerShell, and cmd, and the
+recovery loop costs more tokens than the body itself.
+
+Always use a temp file:
+
+```bash
+# 1. Write the body to a temp file in the repo (gitignored)
+cat > tmp/pr-body.md << 'EOF'
+## Summary
+
+- Bullet one
+- Bullet two with `backticks` and "quotes" — both safe in here
+
+Closes DEL-XX
+EOF
+
+# 2. Pass the file to gh
+gh pr create --title "DEL-XX: <summary>" --body-file tmp/pr-body.md
+
+# 3. Clean up
+rm tmp/pr-body.md
+```
+
+If `tmp/` doesn't exist, create it and add `tmp/` to `.gitignore` once.
+The file approach is the only reliable way to ship markdown bodies through
+Windows shells; the heredoc-inline route hits PowerShell's escape rules and
+fails.
 
 ---
 
@@ -124,6 +177,9 @@ These exist in the workspace and trigger automatically:
 - **`database-engineer`** — Supabase schema, migrations, RLS, indexes. Holds
   the canonical `references/schema.sql` and `references/seed.sql` (refreshed
   at the end of each migration ticket).
+- **`frontend-architect`** — React/TypeScript surface: components, contexts,
+  hooks, pages, data-access layer wrappers, `Result<T>` pattern, testing
+  setup, visual language.
 - **`ticket-workflow`** — the end-to-end implementation lifecycle these
   slash commands sit on top of. Holds the smoke-test patterns, commit
   message format, PR body template, and Session Handoff entry template.
@@ -167,4 +223,5 @@ the MCP path is broken so we can fix it.
 - Migration filenames: `supabase/migrations/<UTC timestamp>_<snake_case>.sql`
 - Branch names: `sjoblomerik/del-XX-<short-kebab-slug>` (Linear suggests this)
 - Commit message: `DEL-XX: <one-line summary>` — plain, no scope prefixes
-- PR body: short summary + bullet list of what shipped + a "closes DEL-XX" line
+- PR body: short summary + bullet list of what shipped + a "closes DEL-XX" line,
+  written to `tmp/pr-body.md` and passed via `--body-file`
