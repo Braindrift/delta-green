@@ -93,10 +93,7 @@ export async function listPendingInvitations(
 ): Promise<Result<PendingInvitationWithProfile[]>> {
   const { data, error } = await supabase
     .from('campaign_invitations')
-    .select(
-      'id, campaign_id, invited_by, invitee_user_id, invitee_email, message, ' +
-        'status, expires_at, created_at, resolved_at',
-    )
+    .select('id, campaign_id, invited_by, invitee_user_id, invitee_email, message, status, expires_at, created_at, resolved_at')
     .eq('campaign_id', campaignId)
     .eq('status', 'pending')
     .gt('expires_at', new Date().toISOString())
