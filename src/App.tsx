@@ -9,6 +9,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { InviteAcceptPage } from '@/pages/InviteAcceptPage';
 import { InviteTokenPage } from '@/pages/InviteTokenPage';
+import { TransferAcceptPage } from '@/pages/TransferAcceptPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { ResetPasswordRequestPage } from '@/pages/ResetPasswordRequestPage';
@@ -105,6 +106,13 @@ function App() {
             <Route
               path="invitations/:invitationId"
               element={<InviteAcceptPage />}
+            />
+            {/* Handler ownership-transfer recipient screen (DEL-49).
+                Reached from the notifications inbox (DEL-50, deep-links via
+                the `handler_transfer_requested` payload's `transfer_id`). */}
+            <Route
+              path="transfers/:transferId"
+              element={<TransferAcceptPage />}
             />
           </Route>
 
