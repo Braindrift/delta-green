@@ -24,8 +24,8 @@ dist-ssr
 *.sw?
 
 # Supabase CLI local state
-supabase/.temp/.env.smoke
-.env.smoke 
+supabase/.temp/
+.env.smoke
 # Claude Code per-user settings 
 .claude/settings.local.json 
  
