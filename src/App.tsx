@@ -2,9 +2,11 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import { WorkspaceLayout } from '@/components/layout/WorkspaceLayout';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { ManageLayout } from '@/components/layout/ManageLayout';
 import { DEFAULT_NAV_SEGMENT } from '@/components/layout/navConfig';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { ToastProvider } from '@/contexts/ToastContext';
 import { LoginPage } from '@/pages/LoginPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { ResetPasswordRequestPage } from '@/pages/ResetPasswordRequestPage';
@@ -27,6 +29,8 @@ import {
   UnnaturalPage,
 } from '@/pages/sections';
 import { SignupPage } from '@/pages/SignupPage';
+import { ManageMembersPage } from '@/pages/manage/ManageMembersPage';
+import { ManageSettingsPage } from '@/pages/manage/ManageSettingsPage';
 import { CampaignsLandingPage } from '@/pages/workspace/CampaignsLandingPage';
 import { CreateCampaignPage } from '@/pages/workspace/CreateCampaignPage';
 import { WorkspaceAgentsPage } from '@/pages/workspace/WorkspaceAgentsPage';
@@ -39,15 +43,22 @@ import { WorkspacePreferencesPage } from '@/pages/workspace/WorkspacePreferences
 /**
  * Route table.
  *
- * Auth screens are public. Authenticated routes split into two protected
+ * Auth screens are public. Authenticated routes split into three protected
  * subtrees:
  *
  *   Workspace shell  — `/`, `/agents`, `/notifications`, `/browse`, and
  *                      account stubs. `WorkspaceLayout` renders the shared
  *                      header + workspace sidebar.
  *
- *   Campaign shell   — `/campaigns/:campaignId/*`. `AppLayout` mounts
- *                      `CampaignProvider` + `CampaignGuard` so every
+ *   Manage subtree   — `/campaigns/:campaignId/manage/*`. `ManageLayout`
+ *                      mounts `CampaignProvider` + `CampaignGuard` +
+ *                      `ManageGuard` so only the active Handler can land
+ *                      here. Uses the workspace chrome (campaign
+ *                      management is a workspace-layer concern, not a
+ *                      campaign-shell one).
+ *
+ *   Campaign shell   — `/campaigns/:campaignId/*` (other paths). `AppLayout`
+ *                      mounts `CampaignProvider` + `CampaignGuard` so every
  *                      descendant has a guaranteed non-null campaign.
  *
  * The leaf paths in the campaign shell mirror `NAV_GROUPS` in `navConfig.ts`,
@@ -57,6 +68,7 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <ToastProvider>
         <Routes>
           {/* Public auth routes */}
           <Route path="/login" element={<LoginPage />} />
@@ -80,6 +92,22 @@ function App() {
             <Route path="profile" element={<WorkspaceProfilePage />} />
             <Route path="account" element={<WorkspaceAccountPage />} />
             <Route path="preferences" element={<WorkspacePreferencesPage />} />
+          </Route>
+
+          {/* Campaign-management subtree (workspace-chrome, Handler-only) */}
+          <Route
+            path="/campaigns/:campaignId/manage"
+            element={
+              <ProtectedRoute>
+                <ManageLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<Navigate to="members" replace />} />
+            <Route path="members" element={<ManageMembersPage />} />
+            <Route path="settings" element={<ManageSettingsPage />} />
+            {/* Unknown management sub-path → bounce to members. */}
+            <Route path="*" element={<Navigate to="members" replace />} />
           </Route>
 
           {/* Campaign shell */}
@@ -128,6 +156,7 @@ function App() {
           {/* Any other path → root. */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   );

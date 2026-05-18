@@ -24,6 +24,8 @@ import { supabase } from '@/lib/supabase';
 import { mapPostgrestError, notFound, ok, type Result } from '@/lib/records/errors';
 import type { Campaign, CampaignMembership } from '@/types/campaigns';
 
+export type CampaignRole = 'gm' | 'player';
+
 /**
  * Fetch a single campaign row by id. Returns `not_found` when the row
  * doesn't exist, is soft-deleted, or RLS hides it from the caller — these
@@ -162,4 +164,49 @@ export async function getMemberCountsByCampaign(
     counts[row.campaign_id] = (counts[row.campaign_id] ?? 0) + 1;
   }
   return ok(counts);
+}
+
+/**
+ * Resolve the authenticated user's role in a single campaign.
+ *
+ * Returns:
+ *   - `ok('gm')` if the caller is an active Handler of the campaign,
+ *   - `ok('player')` if they are an active Agent,
+ *   - `not_found` if they have no active membership (RLS-hidden, soft-left,
+ *     never joined, or campaign soft-deleted — all indistinguishable from
+ *     the client per the same information-leak posture as `getCampaignById`).
+ *
+ * The unique `(campaign_id, user_id)` constraint guarantees at most one row,
+ * so `.maybeSingle()` is safe. The explicit `user_id` filter is redundant
+ * with `is_campaign_member` RLS for Agents (which only exposes the caller's
+ * own active row alongside other active members), but a Handler can read
+ * every member row in their campaign — so the filter is load-bearing for the
+ * Handler case to avoid returning a different member's row.
+ *
+ * Used by `ManageGuard` to gate the `/campaigns/:campaignId/manage/*` subtree.
+ * Server-side RLS already restricts the actions reachable from those routes;
+ * this query exists purely to drive the UI redirect for non-Handlers.
+ */
+export async function getMyRoleInCampaign(
+  campaignId: string,
+): Promise<Result<CampaignRole>> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user.id;
+  if (!userId) return notFound();
+
+  const { data, error } = await supabase
+    .from('campaign_members')
+    .select('role')
+    .eq('campaign_id', campaignId)
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === '22P02') return notFound();
+    return mapPostgrestError(error);
+  }
+
+  if (!data) return notFound();
+  return ok((data as { role: CampaignRole }).role);
 }

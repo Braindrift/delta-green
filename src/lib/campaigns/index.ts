@@ -10,8 +10,10 @@
 export {
   getCampaignById,
   getMemberCountsByCampaign,
+  getMyRoleInCampaign,
   listCampaigns,
   listMyMemberships,
+  type CampaignRole,
 } from './queries';
 
 export {
