@@ -15,6 +15,8 @@ export {
 export {
   inviteExistingUser,
   kickMember,
+  leaveCampaign,
   revokeInvitation,
   type InviteExistingUserInput,
+  type LeaveCampaignOutcome,
 } from './mutations';

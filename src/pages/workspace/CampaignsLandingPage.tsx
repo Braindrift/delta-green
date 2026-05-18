@@ -32,10 +32,14 @@
 
 import { Link } from 'react-router-dom';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { listMyMemberships } from '@/lib/campaigns';
 import { listMyPlayerCharacters } from '@/lib/player-characters';
+import { RowMenu } from '@/components/common/RowMenu';
+import { LeaveCampaignModal } from '@/components/workspace/LeaveCampaignModal';
+import { LeaveLastHandlerModal } from '@/components/workspace/LeaveLastHandlerModal';
+import { useToast } from '@/contexts/ToastContext';
 import type { CampaignMembership } from '@/types/campaigns';
 import type { PlayerCharacterWithCampaign } from '@/types/player-characters';
 
@@ -44,8 +48,24 @@ type LoadState =
   | { kind: 'error' }
   | { kind: 'ready'; memberships: CampaignMembership[] };
 
+type LeaveDialogState =
+  | { kind: 'closed' }
+  | { kind: 'leave'; campaignId: string; campaignName: string }
+  | { kind: 'last_handler'; campaignName: string };
+
 export function CampaignsLandingPage() {
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
+  const [dialog, setDialog] = useState<LeaveDialogState>({ kind: 'closed' });
+  const { showToast } = useToast();
+
+  const reload = useCallback(async () => {
+    const result = await listMyMemberships();
+    if (!result.ok) {
+      setState({ kind: 'error' });
+      return;
+    }
+    setState({ kind: 'ready', memberships: result.data });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,6 +91,26 @@ export function CampaignsLandingPage() {
   const hasNoCampaigns =
     state.kind === 'ready' && handlerMemberships.length === 0 && agentMemberships.length === 0;
 
+  const handleLeaveRequest = useCallback(
+    (campaignId: string, campaignName: string) => {
+      setDialog({ kind: 'leave', campaignId, campaignName });
+    },
+    [],
+  );
+
+  const handleLeft = useCallback(
+    (campaignName: string) => {
+      setDialog({ kind: 'closed' });
+      showToast('success', `Left ${campaignName}.`);
+      void reload();
+    },
+    [reload, showToast],
+  );
+
+  const handleIsHandler = useCallback((campaignName: string) => {
+    setDialog({ kind: 'last_handler', campaignName });
+  }, []);
+
   return (
     <div className="flex gap-8 items-start">
       <section className="flex-1 min-w-0">
@@ -94,6 +134,7 @@ export function CampaignsLandingPage() {
                 title="As Agent"
                 count={agentMemberships.length}
                 memberships={agentMemberships}
+                onLeaveRequest={handleLeaveRequest}
               />
             ) : null}
           </div>
@@ -101,6 +142,23 @@ export function CampaignsLandingPage() {
       </section>
 
       <AgentPanelPlaceholder />
+
+      {dialog.kind === 'leave' ? (
+        <LeaveCampaignModal
+          campaignId={dialog.campaignId}
+          campaignName={dialog.campaignName}
+          onClose={() => setDialog({ kind: 'closed' })}
+          onLeft={() => handleLeft(dialog.campaignName)}
+          onIsHandler={() => handleIsHandler(dialog.campaignName)}
+        />
+      ) : null}
+
+      {dialog.kind === 'last_handler' ? (
+        <LeaveLastHandlerModal
+          campaignName={dialog.campaignName}
+          onClose={() => setDialog({ kind: 'closed' })}
+        />
+      ) : null}
     </div>
   );
 }
@@ -159,9 +217,19 @@ type MembershipsSectionProps = {
   title: string;
   count: number;
   memberships: CampaignMembership[];
+  /**
+   * Only set on the "As Agent" section. When undefined the section renders
+   * cards without the kebab — used for "As Handler".
+   */
+  onLeaveRequest?: (campaignId: string, campaignName: string) => void;
 };
 
-function MembershipsSection({ title, count, memberships }: MembershipsSectionProps) {
+function MembershipsSection({
+  title,
+  count,
+  memberships,
+  onLeaveRequest,
+}: MembershipsSectionProps) {
   return (
     <section>
       <h2 className="font-display text-[13px] font-light tracking-[0.22em] uppercase text-paper-worn mb-3">
@@ -172,7 +240,11 @@ function MembershipsSection({ title, count, memberships }: MembershipsSectionPro
         style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}
       >
         {memberships.map((m) => (
-          <CampaignCard key={m.campaign.id} membership={m} />
+          <CampaignCard
+            key={m.campaign.id}
+            membership={m}
+            onLeaveRequest={onLeaveRequest}
+          />
         ))}
       </div>
     </section>
@@ -183,10 +255,19 @@ function MembershipsSection({ title, count, memberships }: MembershipsSectionPro
 /*  Campaign card                                                             */
 /* -------------------------------------------------------------------------- */
 
-function CampaignCard({ membership }: { membership: CampaignMembership }) {
+function CampaignCard({
+  membership,
+  onLeaveRequest,
+}: {
+  membership: CampaignMembership;
+  onLeaveRequest?: (campaignId: string, campaignName: string) => void;
+}) {
   const { campaign, member_count, role } = membership;
   const roleLabel = role === 'gm' ? 'Handler' : 'Agent';
   const memberLabel = `${member_count} ${member_count === 1 ? 'member' : 'members'}`;
+  // The kebab only appears for player memberships. Handler cards never
+  // get a leave affordance — transfer/delete live elsewhere (M-7b/c).
+  const showLeaveMenu = role === 'player' && Boolean(onLeaveRequest);
 
   return (
     <div className="border border-green-dim bg-desk-edge p-4 flex flex-col gap-3 min-h-[140px]">
@@ -201,9 +282,27 @@ function CampaignCard({ membership }: { membership: CampaignMembership }) {
             </div>
           ) : null}
         </div>
-        <span className="font-ui text-[9px] tracking-[0.16em] uppercase text-green-mid border border-green-dim/60 px-[6px] py-[2px] flex-shrink-0">
-          {roleLabel}
-        </span>
+        <div className="flex items-start gap-1 flex-shrink-0">
+          <span className="font-ui text-[9px] tracking-[0.16em] uppercase text-green-mid border border-green-dim/60 px-[6px] py-[2px]">
+            {roleLabel}
+          </span>
+          {showLeaveMenu ? (
+            <RowMenu label={`Actions for ${campaign.name}`}>
+              {(close) => (
+                <button
+                  type="button"
+                  onClick={() => {
+                    close();
+                    onLeaveRequest?.(campaign.id, campaign.name);
+                  }}
+                  className="dg-dropdown-item w-full text-left font-ui text-[10px] tracking-[0.14em] uppercase text-paper-worn px-3 py-[9px] hover:bg-red-faded/[0.08] hover:text-red-stamp transition-colors"
+                >
+                  Leave campaign
+                </button>
+              )}
+            </RowMenu>
+          ) : null}
+        </div>
       </div>
 
       <div className="font-ui text-[10px] tracking-[0.14em] uppercase text-paper-dark/80 mt-auto">

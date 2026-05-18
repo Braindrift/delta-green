@@ -140,3 +140,51 @@ export async function kickMember(memberId: string): Promise<Result<CampaignMembe
   if (error) return mapPostgrestError(error);
   return ok(data as CampaignMember);
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Members — player leave                                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Outcome of `leave_campaign`. The RPC returns a single discriminator
+ * string; we lift it into a typed union so the UI doesn't have to compare
+ * raw strings.
+ *
+ *   - `left`        — caller's row flipped to `former` + `left_at` stamped.
+ *                     PC demote happened via the existing trigger.
+ *   - `is_handler`  — caller is the sole Handler. Row untouched; UI surfaces
+ *                     `LeaveLastHandlerModal` directing them to transfer or
+ *                     delete (those flows land in M-7b / M-7c).
+ *   - `not_member`  — caller has no active membership for this campaign
+ *                     (already left, kicked, campaign soft-deleted, or never
+ *                     joined — indistinguishable on purpose). Treat as a
+ *                     stale UI state and refetch memberships.
+ */
+export type LeaveCampaignOutcome = 'left' | 'is_handler' | 'not_member';
+
+/**
+ * Ask the server to leave a campaign on the caller's behalf. The RPC
+ * (`leave_campaign`) is the only sanctioned write path for the player
+ * leave flow — `campaign_members.gm can update` doesn't cover it and the
+ * server enforces the Handler trap there so a future surface can't
+ * accidentally bypass it.
+ *
+ * Errors:
+ *   - `unknown` — RPC errored or returned an unexpected discriminator
+ *     (including `not_authenticated`, which the auth-guarded routes
+ *     already prevent in practice).
+ */
+export async function leaveCampaign(
+  campaignId: string,
+): Promise<Result<LeaveCampaignOutcome>> {
+  const { data, error } = await supabase.rpc('leave_campaign', {
+    p_campaign_id: campaignId,
+  });
+
+  if (error) return mapPostgrestError(error);
+
+  if (data === 'left' || data === 'is_handler' || data === 'not_member') {
+    return ok(data);
+  }
+  return { ok: false, kind: 'unknown', cause: new Error(`Unexpected leave_campaign outcome: ${String(data)}`) };
+}
