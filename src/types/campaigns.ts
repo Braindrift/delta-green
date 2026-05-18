@@ -28,3 +28,19 @@ export type Campaign = {
   updated_at: string;
   deleted_at: string | null;
 };
+
+/**
+ * Membership-scoped view of a campaign, used by the workspace landing page.
+ *
+ * Carries the caller's role in the campaign alongside the campaign row
+ * itself, so the landing page can group rows by Handler / Agent without
+ * making a second query. `member_count` is the count of active members
+ * in the campaign — merged in from `getMemberCountsByCampaign` rather than
+ * embedded in the membership read, because PostgREST embedded aggregates
+ * over the same table that supplies the filter produces ambiguous results.
+ */
+export type CampaignMembership = {
+  role: 'gm' | 'player';
+  campaign: Campaign;
+  member_count: number;
+};

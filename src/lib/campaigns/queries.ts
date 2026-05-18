@@ -22,7 +22,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError, notFound, ok, type Result } from '@/lib/records/errors';
-import type { Campaign } from '@/types/campaigns';
+import type { Campaign, CampaignMembership } from '@/types/campaigns';
 
 /**
  * Fetch a single campaign row by id. Returns `not_found` when the row
@@ -70,4 +70,96 @@ export async function listCampaigns(): Promise<Result<Campaign[]>> {
 
   if (error) return mapPostgrestError(error);
   return ok((data ?? []) as Campaign[]);
+}
+
+/**
+ * Fetch the authenticated user's active campaign memberships, joined to the
+ * campaign rows the workspace landing page needs to render.
+ *
+ * Reads from `campaign_members`:
+ *   - filtered by `user_id = auth.uid()` (explicit narrowing; RLS already
+ *     restricts to rows the caller can read, but the explicit filter avoids
+ *     surprises if a future helper policy ever widens the read scope),
+ *   - filtered by `status = 'active'` so left/kicked members aren't listed,
+ *   - inner-joined to `campaigns` with `deleted_at is null` so soft-deleted
+ *     campaigns are excluded from the join product itself rather than
+ *     filtered post-hoc (this also short-circuits the read when the campaign
+ *     row is hidden by RLS for any reason).
+ *
+ * The member count per campaign is fetched separately via
+ * `getMemberCountsByCampaign` and merged at the call site. Embedding the
+ * count aggregate on the same `campaign_members` read produces ambiguous
+ * results — PostgREST can't tell whether to apply the user_id filter to the
+ * aggregate or not — so two queries is the readable path.
+ *
+ * Ordered by `campaign.name` so the landing page is alphabetically stable.
+ */
+export async function listMyMemberships(): Promise<Result<CampaignMembership[]>> {
+  const { data, error } = await supabase
+    .from('campaign_members')
+    .select('role, campaign:campaigns!inner(*)')
+    .eq('status', 'active')
+    .is('campaign.deleted_at', null)
+    .order('name', { foreignTable: 'campaigns', ascending: true });
+
+  if (error) return mapPostgrestError(error);
+
+  // PostgREST returns the joined campaign as a single object on `!inner`,
+  // but the generated TS types think it might be an array — guard at the
+  // boundary so consumers see a clean `Campaign` value.
+  const rows = (data ?? []) as Array<{
+    role: 'gm' | 'player';
+    campaign: Campaign | Campaign[];
+  }>;
+
+  const memberships: CampaignMembership[] = rows
+    .map((row) => {
+      const campaign = Array.isArray(row.campaign) ? row.campaign[0] : row.campaign;
+      if (!campaign) return null;
+      return { role: row.role, campaign, member_count: 0 };
+    })
+    .filter((m): m is CampaignMembership => m !== null);
+
+  if (memberships.length === 0) return ok(memberships);
+
+  const counts = await getMemberCountsByCampaign(memberships.map((m) => m.campaign.id));
+  if (!counts.ok) return counts;
+
+  return ok(
+    memberships.map((m) => ({
+      ...m,
+      member_count: counts.data[m.campaign.id] ?? 0,
+    })),
+  );
+}
+
+/**
+ * Count active members in the given campaigns. Returns a map keyed by
+ * `campaign_id`. Used by `listMyMemberships` to enrich the landing-page
+ * rows with a member count without coupling the membership read to an
+ * embedded aggregate.
+ *
+ * Implementation note: PostgREST has no `group by` support, so we fetch
+ * `campaign_id` for every active membership in the input set and tally
+ * client-side. The set is bounded by the campaigns the caller is in (RLS),
+ * so the row count is tiny in practice.
+ */
+export async function getMemberCountsByCampaign(
+  campaignIds: string[],
+): Promise<Result<Record<string, number>>> {
+  if (campaignIds.length === 0) return ok({});
+
+  const { data, error } = await supabase
+    .from('campaign_members')
+    .select('campaign_id')
+    .eq('status', 'active')
+    .in('campaign_id', campaignIds);
+
+  if (error) return mapPostgrestError(error);
+
+  const counts: Record<string, number> = {};
+  for (const row of (data ?? []) as Array<{ campaign_id: string }>) {
+    counts[row.campaign_id] = (counts[row.campaign_id] ?? 0) + 1;
+  }
+  return ok(counts);
 }

@@ -7,4 +7,9 @@
  * from here.
  */
 
-export { getCampaignById, listCampaigns } from './queries';
+export {
+  getCampaignById,
+  getMemberCountsByCampaign,
+  listCampaigns,
+  listMyMemberships,
+} from './queries';
