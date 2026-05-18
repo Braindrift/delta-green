@@ -75,6 +75,47 @@ export async function createCampaign(input: CreateCampaignInput): Promise<Result
  * can read` RLS policy: the caller is always a member of campaigns they own
  * (the trigger ensures it), so RLS does not hide their own rows.
  */
+/**
+ * Soft-delete a campaign (DEL-48). Routes through the `soft_delete_campaign`
+ * RPC rather than a direct `update campaigns set deleted_at = now()`.
+ *
+ * Why an RPC: PostgreSQL enforces SELECT-policy visibility on the post-image
+ * of every UPDATE, and `campaigns: members can read` requires
+ * `deleted_at is null`. A direct update by the Handler therefore aborts with
+ * `42501 — new row violates RLS policy on "campaigns"` even though the
+ * `gm can update` policy itself passes. The `security definer` RPC bypasses
+ * RLS for the write and returns a discriminator string. This mirrors the
+ * shape `leave_campaign` (DEL-47) takes for the same class of reason.
+ *
+ * Side effects (all in-transaction with the RPC's update):
+ *   - The DEL-35 `campaigns_notify_soft_delete` trigger fans out
+ *     `campaign_deleted` notifications to every active member except the
+ *     caller.
+ *   - RLS read policies that already filter `deleted_at is null` (the
+ *     `campaigns` SELECT policy, `listMyMemberships`' join condition,
+ *     `getCampaignById`) drop the campaign from every member's view.
+ *
+ * Returns `ok(true)` on success. The RPC's `not_member` / `not_handler` /
+ * `not_authenticated` discriminators are mapped to `unknown` here: the
+ * Settings page is gated by `ManageGuard` and the landing-card kebab only
+ * renders on Handler-owned cards, so these branches are not reachable from
+ * the UI in v1. A surface that needs to distinguish them can lift the
+ * discriminator into a typed union at that point, mirroring
+ * `LeaveCampaignOutcome` in `@/lib/members`.
+ */
+export async function softDeleteCampaign(campaignId: string): Promise<Result<true>> {
+  const { data, error } = await supabase.rpc('soft_delete_campaign', {
+    p_campaign_id: campaignId,
+  });
+
+  if (error) return mapPostgrestError(error);
+  if (data === 'deleted') return ok(true);
+
+  return unknown(
+    new Error(`Unexpected soft_delete_campaign outcome: ${String(data)}`),
+  );
+}
+
 export async function checkCampaignNameAvailable(name: string): Promise<Result<boolean>> {
   const { data: sessionData } = await supabase.auth.getSession();
   const userId = sessionData.session?.user.id;
