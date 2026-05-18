@@ -31,9 +31,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // factory is undefined at the moment the factory runs. `vi.hoisted` is the
 // supported way to make a variable available inside the hoisted factory —
 // it lifts the declaration up alongside the `vi.mock` call.
-const { maybeSingleMock, queryMock } = vi.hoisted(() => ({
+const { maybeSingleMock, queryMock, getSessionMock } = vi.hoisted(() => ({
   maybeSingleMock: vi.fn(),
   queryMock: vi.fn(),
+  getSessionMock: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase', () => {
@@ -54,6 +55,9 @@ vi.mock('@/lib/supabase', () => {
   return {
     supabase: {
       from: vi.fn(() => makeBuilder()),
+      auth: {
+        getSession: getSessionMock,
+      },
     },
   };
 });
@@ -61,6 +65,7 @@ vi.mock('@/lib/supabase', () => {
 import {
   getCampaignById,
   getMemberCountsByCampaign,
+  getMyRoleInCampaign,
   listMyMemberships,
 } from '@/lib/campaigns';
 
@@ -262,6 +267,101 @@ describe('listMyMemberships', () => {
     });
 
     const result = await listMyMemberships();
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.kind).toBe('unknown');
+    }
+  });
+});
+
+describe('getMyRoleInCampaign', () => {
+  const USER_ID = '99999999-9999-4999-8999-999999999999';
+  const CAMPAIGN_ID = SAMPLE_CAMPAIGN.id;
+
+  function mockSession(userId: string | null) {
+    getSessionMock.mockResolvedValueOnce({
+      data: { session: userId ? { user: { id: userId } } : null },
+    });
+  }
+
+  beforeEach(() => {
+    maybeSingleMock.mockReset();
+    queryMock.mockReset();
+    getSessionMock.mockReset();
+  });
+
+  it('returns ok("gm") when the caller is an active Handler', async () => {
+    mockSession(USER_ID);
+    maybeSingleMock.mockResolvedValueOnce({ data: { role: 'gm' }, error: null });
+
+    const result = await getMyRoleInCampaign(CAMPAIGN_ID);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toBe('gm');
+    }
+  });
+
+  it('returns ok("player") when the caller is an active Agent', async () => {
+    mockSession(USER_ID);
+    maybeSingleMock.mockResolvedValueOnce({ data: { role: 'player' }, error: null });
+
+    const result = await getMyRoleInCampaign(CAMPAIGN_ID);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toBe('player');
+    }
+  });
+
+  it('returns not_found when no active membership exists', async () => {
+    mockSession(USER_ID);
+    maybeSingleMock.mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await getMyRoleInCampaign(CAMPAIGN_ID);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.kind).toBe('not_found');
+    }
+  });
+
+  it('returns not_found without hitting the DB when no session is hydrated', async () => {
+    mockSession(null);
+
+    const result = await getMyRoleInCampaign(CAMPAIGN_ID);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.kind).toBe('not_found');
+    }
+    expect(maybeSingleMock).not.toHaveBeenCalled();
+  });
+
+  it('maps Postgres 22P02 (invalid UUID) to not_found', async () => {
+    mockSession(USER_ID);
+    maybeSingleMock.mockResolvedValueOnce({
+      data: null,
+      error: { code: '22P02', message: 'invalid uuid', details: '', hint: '' },
+    });
+
+    const result = await getMyRoleInCampaign('not-a-uuid');
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.kind).toBe('not_found');
+    }
+  });
+
+  it('maps generic Postgres errors to unknown', async () => {
+    mockSession(USER_ID);
+    maybeSingleMock.mockResolvedValueOnce({
+      data: null,
+      error: { code: 'XX000', message: 'internal_error', details: '', hint: '' },
+    });
+
+    const result = await getMyRoleInCampaign(CAMPAIGN_ID);
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
