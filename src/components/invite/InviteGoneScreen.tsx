@@ -1,15 +1,19 @@
 /**
- * Terminal state of an invite-token landing — the link points at a row
- * that's no longer actionable. Four variants surface here today:
+ * Terminal state of an invite-token or in-app accept-screen landing —
+ * the link points at a row that's no longer actionable. Six variants:
  *
  *   - `revoked`   — Handler cancelled the invite.
  *   - `expired`   — invitation passed its `expires_at`.
  *   - `accepted`  — already accepted (single-use token).
  *   - `declined`  — already declined.
+ *   - `deleted`   — the campaign itself was soft-deleted (DEL-46).
+ *   - `full`      — the campaign reached `max_agents` before this
+ *                   invitation could be accepted (DEL-46).
  *
- * DEL-46 will add `deleted` (campaign soft-deleted) and `full` (campaign
- * at max-agents) at the accept-flow side; those are about the campaign
- * state, not the invite row, so they don't ride this component yet.
+ * The first four are about the invitation row's status; the last two
+ * are about the campaign state at accept time. The in-app accept
+ * screen receives the campaign-state variants from the
+ * `accept_invitation_with_pc` RPC's discriminator.
  *
  * All variants share the same chrome and CTA ("Back to campaigns"). Copy
  * differs so the recipient understands why the link is dead — silent
@@ -21,7 +25,13 @@ import { useNavigate } from 'react-router-dom';
 import { AuthAlert } from '@/components/auth/AuthAlert';
 import { AuthShell } from '@/components/auth/AuthShell';
 
-export type InviteGoneVariant = 'revoked' | 'expired' | 'accepted' | 'declined';
+export type InviteGoneVariant =
+  | 'revoked'
+  | 'expired'
+  | 'accepted'
+  | 'declined'
+  | 'deleted'
+  | 'full';
 
 export type InviteGoneScreenProps = {
   variant: InviteGoneVariant;
@@ -87,5 +97,19 @@ const COPY: Record<
       name
         ? `This invitation to "${name}" has already been declined.`
         : 'This invitation has already been declined.',
+  },
+  deleted: {
+    alertTitle: 'Campaign closed',
+    body: (name) =>
+      name
+        ? `The campaign "${name}" no longer exists. Ask the Handler if a new operation is being assembled.`
+        : 'This campaign no longer exists. Ask the Handler if a new operation is being assembled.',
+  },
+  full: {
+    alertTitle: 'Roster full',
+    body: (name) =>
+      name
+        ? `The roster for "${name}" is full. Ask the Handler if a seat opens up.`
+        : 'The roster is full. Ask the Handler if a seat opens up.',
   },
 };

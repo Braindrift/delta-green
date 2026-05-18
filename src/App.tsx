@@ -7,7 +7,7 @@ import { DEFAULT_NAV_SEGMENT } from '@/components/layout/navConfig';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ToastProvider } from '@/contexts/ToastContext';
-import { InviteAcceptPlaceholderPage } from '@/pages/InviteAcceptPlaceholderPage';
+import { InviteAcceptPage } from '@/pages/InviteAcceptPage';
 import { InviteTokenPage } from '@/pages/InviteTokenPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
@@ -99,11 +99,12 @@ function App() {
             <Route path="profile" element={<WorkspaceProfilePage />} />
             <Route path="account" element={<WorkspaceAccountPage />} />
             <Route path="preferences" element={<WorkspacePreferencesPage />} />
-            {/* Accept-invite placeholder (DEL-45). DEL-46 replaces the
-                body with the PC-picker flow. */}
+            {/* In-app accept-invite flow (DEL-46). Reached from the
+                notifications inbox or from `InviteTokenPage` after a
+                successful claim of a magic-link invite. */}
             <Route
               path="invitations/:invitationId"
-              element={<InviteAcceptPlaceholderPage />}
+              element={<InviteAcceptPage />}
             />
           </Route>
 

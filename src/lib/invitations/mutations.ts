@@ -14,8 +14,12 @@
  */
 
 import { supabase } from '@/lib/supabase';
-import { mapPostgrestError, ok, type Result } from '@/lib/records/errors';
-import type { CampaignInvitation, InvitationClaimResult } from '@/types/members';
+import { mapPostgrestError, ok, unknown, type Result } from '@/lib/records/errors';
+import type {
+  AcceptInvitationResult,
+  CampaignInvitation,
+  InvitationClaimResult,
+} from '@/types/members';
 
 /* -------------------------------------------------------------------------- */
 /*  Stranger-invite insert                                                    */
@@ -149,6 +153,91 @@ export async function declineInvitationByToken(
   if (rows.length === 0) return ok(null);
 
   return ok({ invitation_id: rows[0].invitation_id });
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Accept (in-app, with PC)                                                  */
+/* -------------------------------------------------------------------------- */
+
+type RawAcceptRow = {
+  campaign_id: string | null;
+  status: string;
+};
+
+const ACCEPT_STATUSES = new Set<AcceptInvitationResult['status']>([
+  'accepted',
+  'gone',
+  'deleted',
+  'full',
+]);
+
+/**
+ * Call the `accept_invitation_with_pc` RPC (DEL-46). The RPC is atomic:
+ * status flip + member upsert + PC attach all land or none do. It always
+ * returns exactly one row; `campaign_id` is null on the non-accepted
+ * branches and the `status` discriminator tells the caller which
+ * `InviteGoneScreen` variant to render without a refetch.
+ */
+export async function acceptInvitationWithPc(
+  invitationId: string,
+  pcId: string,
+): Promise<Result<AcceptInvitationResult>> {
+  const { data, error } = await supabase.rpc('accept_invitation_with_pc', {
+    p_invitation_id: invitationId,
+    p_pc_id: pcId,
+  });
+
+  if (error) return mapPostgrestError(error);
+
+  const rows = (data ?? []) as RawAcceptRow[];
+  if (rows.length === 0) {
+    return unknown(new Error('accept_invitation_with_pc returned no rows'));
+  }
+
+  const row = rows[0];
+  if (!ACCEPT_STATUSES.has(row.status as AcceptInvitationResult['status'])) {
+    return unknown(new Error(`Unexpected accept status: ${row.status}`));
+  }
+
+  if (row.status === 'accepted') {
+    if (!row.campaign_id) {
+      return unknown(new Error('Accepted invitation returned null campaign_id'));
+    }
+    return ok({ status: 'accepted', campaign_id: row.campaign_id });
+  }
+
+  return ok({
+    status: row.status as 'gone' | 'deleted' | 'full',
+    campaign_id: null,
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Decline (in-app)                                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Decline an existing-user invitation. Direct UPDATE rather than an RPC:
+ * the invitee-update RLS policy on `campaign_invitations` (DEL-34)
+ * covers `invitee_user_id = auth.uid()`, which is the exact path the
+ * in-app accept screen hits. Returns the post-update row count for
+ * idempotency — zero matched rows means the invitation was no longer
+ * pending (race with revoke / accept / expiry), and the page falls
+ * back to a `getInvitationForAccept` refetch to pick the right
+ * `InviteGoneScreen` variant.
+ */
+export async function declineInvitation(
+  invitationId: string,
+): Promise<Result<{ matched: number }>> {
+  const { data, error } = await supabase
+    .from('campaign_invitations')
+    .update({ status: 'declined', resolved_at: new Date().toISOString() })
+    .eq('id', invitationId)
+    .eq('status', 'pending')
+    .select('id');
+
+  if (error) return mapPostgrestError(error);
+  return ok({ matched: (data ?? []).length });
 }
 
 /* -------------------------------------------------------------------------- */

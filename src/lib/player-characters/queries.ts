@@ -72,6 +72,41 @@ export async function listMyPlayerCharacters(): Promise<
 }
 
 /**
+ * Fetch the joinable PC roster: PCs owned by the caller that can be
+ * brought into a campaign right now. Filters `campaign_id is null`,
+ * `status = 'unassigned'`, and `deleted_at is null` — the exact set the
+ * DEL-46 accept-invite picker offers. Ordered by `name` ascending for
+ * roster stability.
+ *
+ * Returned as the slim `PlayerCharacter` shape (no campaign embed) since
+ * the picker only renders the name + archetype + notes — no campaign
+ * attachment by construction.
+ */
+export async function listJoinablePlayerCharacters(): Promise<
+  Result<PlayerCharacter[]>
+> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user.id;
+  if (!userId) {
+    return unknown(new Error('No authenticated session'));
+  }
+
+  const { data, error } = await supabase
+    .from('player_characters')
+    .select(
+      'id, owner_id, campaign_id, name, archetype, data, status, created_at, updated_at, deleted_at',
+    )
+    .eq('owner_id', userId)
+    .is('campaign_id', null)
+    .is('deleted_at', null)
+    .eq('status', 'unassigned')
+    .order('name', { ascending: true });
+
+  if (error) return mapPostgrestError(error);
+  return ok((data ?? []) as PlayerCharacter[]);
+}
+
+/**
  * Fetch a single PC by id. Returns `not_found` when the row doesn't exist
  * or RLS hides it from the caller — these are intentionally
  * indistinguishable for the same information-leak posture as

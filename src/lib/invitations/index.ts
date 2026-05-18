@@ -8,11 +8,13 @@
  * `@/lib/members`.
  */
 
-export { getInvitationByToken } from './queries';
+export { getInvitationByToken, getInvitationForAccept } from './queries';
 
 export {
+  acceptInvitationWithPc,
   claimInvitationByToken,
   createStrangerInvitation,
+  declineInvitation,
   declineInvitationByToken,
   sendInvitationEmail,
   type CreateStrangerInvitationInput,
