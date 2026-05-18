@@ -96,3 +96,39 @@ export type InvitationClaimResult = {
   invitation_id: string;
   campaign_id: string;
 };
+
+/**
+ * Payload the in-app accept screen (DEL-46) needs to render. Joins the
+ * invitation row with its campaign + the inviter's username and the
+ * current active-member count, so the page can render the seat counter
+ * and the campaign name in a single load.
+ *
+ * `campaign_deleted_at` lets the screen pick the `'deleted'`
+ * `InviteGoneScreen` variant at render time without a second query —
+ * the read still goes through RLS, which excludes soft-deleted
+ * campaigns for non-members, so a non-null value here would have to be
+ * surfaced via a separate path (the RPC's `'deleted'` discriminator).
+ */
+export type InvitationAcceptView = {
+  invitation_id: string;
+  campaign_id: string;
+  campaign_name: string;
+  campaign_max_agents: number;
+  campaign_deleted_at: string | null;
+  inviter_username: string | null;
+  status: CampaignInvitationStatus;
+  expires_at: string;
+  message: string | null;
+  invitee_user_id: string | null;
+  active_member_count: number;
+};
+
+/**
+ * Return shape of `accept_invitation_with_pc` (DEL-46). The function
+ * always returns a row; `campaign_id` is only populated when
+ * `status === 'accepted'`. Non-accept statuses tell the page which
+ * `InviteGoneScreen` variant to render without an extra round-trip.
+ */
+export type AcceptInvitationResult =
+  | { status: 'accepted'; campaign_id: string }
+  | { status: 'gone' | 'deleted' | 'full'; campaign_id: null };
