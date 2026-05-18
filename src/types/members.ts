@@ -71,3 +71,28 @@ export type CampaignInvitation = {
 export type PendingInvitationWithProfile = CampaignInvitation & {
   username: string | null;
 };
+
+/**
+ * Public view returned by the `get_invitation_by_token` RPC (DEL-34) —
+ * the only surface the unauthenticated magic-link landing can read. Keeps
+ * the field set tight; nothing here exposes invitee identity.
+ */
+export type InvitationByToken = {
+  campaign_name: string;
+  inviter_handle: string;
+  status: CampaignInvitationStatus;
+  expires_at: string;
+  message: string | null;
+  invitee_email: string;
+};
+
+/**
+ * Return shape of `claim_invitation_by_token` (DEL-45). Empty result =>
+ * the token wasn't claimable (wrong email, expired, already resolved,
+ * etc.); the caller falls back to a fresh `getInvitationByToken` to
+ * render the right `InviteGoneScreen` variant.
+ */
+export type InvitationClaimResult = {
+  invitation_id: string;
+  campaign_id: string;
+};

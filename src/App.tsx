@@ -7,6 +7,8 @@ import { DEFAULT_NAV_SEGMENT } from '@/components/layout/navConfig';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ToastProvider } from '@/contexts/ToastContext';
+import { InviteAcceptPlaceholderPage } from '@/pages/InviteAcceptPlaceholderPage';
+import { InviteTokenPage } from '@/pages/InviteTokenPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { ResetPasswordRequestPage } from '@/pages/ResetPasswordRequestPage';
@@ -76,6 +78,11 @@ function App() {
           <Route path="/reset-password" element={<ResetPasswordRequestPage />} />
           <Route path="/reset-password/confirm" element={<ResetPasswordPage />} />
 
+          {/* Magic-link invite landing (DEL-45). Public — the
+              `get_invitation_by_token` RPC works without auth, and the
+              page routes signed-in/signed-out users into the right flow. */}
+          <Route path="/invite/:token" element={<InviteTokenPage />} />
+
           {/* Workspace shell */}
           <Route
             element={
@@ -92,6 +99,12 @@ function App() {
             <Route path="profile" element={<WorkspaceProfilePage />} />
             <Route path="account" element={<WorkspaceAccountPage />} />
             <Route path="preferences" element={<WorkspacePreferencesPage />} />
+            {/* Accept-invite placeholder (DEL-45). DEL-46 replaces the
+                body with the PC-picker flow. */}
+            <Route
+              path="invitations/:invitationId"
+              element={<InviteAcceptPlaceholderPage />}
+            />
           </Route>
 
           {/* Campaign-management subtree (workspace-chrome, Handler-only) */}
