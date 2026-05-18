@@ -1,9 +1,15 @@
 import { NavLink, useLocation } from 'react-router-dom';
 
+import { useNotifications } from '@/contexts/NotificationsContext';
+
 type WorkspaceNavItem = {
   to: string;
   label: string;
-  badge?: number | null;
+  /**
+   * When set, the item renders a live count chip pulled from the relevant
+   * context. The chip is hidden when the count is 0 (no dead "0" badge).
+   */
+  badgeKind?: 'notifications';
   /**
    * Optional override for the "active" predicate. When omitted, the NavLink's
    * own `isActive` (exact match) is used. The Campaigns item uses this to stay
@@ -26,18 +32,21 @@ const WORKSPACE_NAV: WorkspaceNavItem[] = [
       pathname === '/' || pathname === '/campaigns' || pathname.startsWith('/campaigns/'),
   },
   { to: '/agents', label: 'AGENTS' },
-  { to: '/notifications', label: 'NOTIFICATIONS', badge: 0 },
+  { to: '/notifications', label: 'NOTIFICATIONS', badgeKind: 'notifications' },
   { to: '/browse', label: 'BROWSE' },
 ];
 
 export function WorkspaceSidebar() {
   const location = useLocation();
+  const { unreadCount } = useNotifications();
 
   return (
     <nav className="dg-sidebar w-[280px] flex-shrink-0 flex flex-col overflow-hidden relative border-r border-green-dim">
       <div className="dg-sidebar-nav flex-1 overflow-y-auto overflow-x-hidden py-3">
         {WORKSPACE_NAV.map((item) => {
           const matched = item.matchPathname?.(location.pathname);
+          const badge =
+            item.badgeKind === 'notifications' && unreadCount > 0 ? unreadCount : null;
           return (
             <NavLink
               key={item.to}
@@ -55,16 +64,12 @@ export function WorkspaceSidebar() {
               }}
             >
               <span>{item.label}</span>
-              {item.badge != null && (
+              {badge != null && (
                 <span
-                  className={[
-                    'font-ui text-[9px] tracking-[0.1em] px-[7px] py-[2px] rounded-full',
-                    item.badge > 0
-                      ? 'bg-green-accent text-desk'
-                      : 'bg-green-dim/30 text-green-mid',
-                  ].join(' ')}
+                  aria-label={`${badge} unread`}
+                  className="font-ui text-[9px] tracking-[0.1em] px-[7px] py-[2px] rounded-full bg-green-accent text-desk"
                 >
-                  {item.badge}
+                  {badge}
                 </span>
               )}
             </NavLink>
