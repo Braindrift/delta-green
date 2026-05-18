@@ -37,6 +37,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { listMyMemberships } from '@/lib/campaigns';
 import { listMyPlayerCharacters } from '@/lib/player-characters';
 import { RowMenu } from '@/components/common/RowMenu';
+import { DeleteCampaignModal } from '@/components/manage/DeleteCampaignModal';
 import { LeaveCampaignModal } from '@/components/workspace/LeaveCampaignModal';
 import { LeaveLastHandlerModal } from '@/components/workspace/LeaveLastHandlerModal';
 import { useToast } from '@/contexts/ToastContext';
@@ -51,7 +52,8 @@ type LoadState =
 type LeaveDialogState =
   | { kind: 'closed' }
   | { kind: 'leave'; campaignId: string; campaignName: string }
-  | { kind: 'last_handler'; campaignName: string };
+  | { kind: 'last_handler'; campaignName: string }
+  | { kind: 'delete'; campaignId: string; campaignName: string };
 
 export function CampaignsLandingPage() {
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
@@ -111,6 +113,22 @@ export function CampaignsLandingPage() {
     setDialog({ kind: 'last_handler', campaignName });
   }, []);
 
+  const handleDeleteRequest = useCallback(
+    (campaignId: string, campaignName: string) => {
+      setDialog({ kind: 'delete', campaignId, campaignName });
+    },
+    [],
+  );
+
+  const handleDeleted = useCallback(
+    (campaignName: string) => {
+      setDialog({ kind: 'closed' });
+      showToast('success', `${campaignName} deleted.`);
+      void reload();
+    },
+    [reload, showToast],
+  );
+
   return (
     <div className="flex gap-8 items-start">
       <section className="flex-1 min-w-0">
@@ -127,6 +145,7 @@ export function CampaignsLandingPage() {
                 title="As Handler"
                 count={handlerMemberships.length}
                 memberships={handlerMemberships}
+                onDeleteRequest={handleDeleteRequest}
               />
             ) : null}
             {agentMemberships.length > 0 ? (
@@ -157,6 +176,15 @@ export function CampaignsLandingPage() {
         <LeaveLastHandlerModal
           campaignName={dialog.campaignName}
           onClose={() => setDialog({ kind: 'closed' })}
+        />
+      ) : null}
+
+      {dialog.kind === 'delete' ? (
+        <DeleteCampaignModal
+          campaignId={dialog.campaignId}
+          campaignName={dialog.campaignName}
+          onClose={() => setDialog({ kind: 'closed' })}
+          onDeleted={() => handleDeleted(dialog.campaignName)}
         />
       ) : null}
     </div>
@@ -218,10 +246,16 @@ type MembershipsSectionProps = {
   count: number;
   memberships: CampaignMembership[];
   /**
-   * Only set on the "As Agent" section. When undefined the section renders
-   * cards without the kebab — used for "As Handler".
+   * Set on the "As Agent" section. Surfaces "Leave campaign" in the row
+   * kebab on player cards.
    */
   onLeaveRequest?: (campaignId: string, campaignName: string) => void;
+  /**
+   * Set on the "As Handler" section. Surfaces "Delete campaign" in the row
+   * kebab on Handler-owned cards. Settings page is the canonical surface;
+   * this is the landing-page shortcut (DEL-48).
+   */
+  onDeleteRequest?: (campaignId: string, campaignName: string) => void;
 };
 
 function MembershipsSection({
@@ -229,6 +263,7 @@ function MembershipsSection({
   count,
   memberships,
   onLeaveRequest,
+  onDeleteRequest,
 }: MembershipsSectionProps) {
   return (
     <section>
@@ -244,6 +279,7 @@ function MembershipsSection({
             key={m.campaign.id}
             membership={m}
             onLeaveRequest={onLeaveRequest}
+            onDeleteRequest={onDeleteRequest}
           />
         ))}
       </div>
@@ -258,16 +294,25 @@ function MembershipsSection({
 function CampaignCard({
   membership,
   onLeaveRequest,
+  onDeleteRequest,
 }: {
   membership: CampaignMembership;
   onLeaveRequest?: (campaignId: string, campaignName: string) => void;
+  onDeleteRequest?: (campaignId: string, campaignName: string) => void;
 }) {
   const { campaign, member_count, role } = membership;
   const roleLabel = role === 'gm' ? 'Handler' : 'Agent';
   const memberLabel = `${member_count} ${member_count === 1 ? 'member' : 'members'}`;
-  // The kebab only appears for player memberships. Handler cards never
-  // get a leave affordance — transfer/delete live elsewhere (M-7b/c).
-  const showLeaveMenu = role === 'player' && Boolean(onLeaveRequest);
+  // Player cards expose "Leave campaign" (DEL-47); Handler cards expose
+  // "Delete campaign" (DEL-48). Only one action is reachable per role —
+  // transfer-ownership (M-7c / DEL-49) will land in the Settings page, not
+  // on the card.
+  const menuAction: 'leave' | 'delete' | null =
+    role === 'player' && onLeaveRequest
+      ? 'leave'
+      : role === 'gm' && onDeleteRequest
+        ? 'delete'
+        : null;
 
   return (
     <div className="border border-green-dim bg-desk-edge p-4 flex flex-col gap-3 min-h-[140px]">
@@ -286,18 +331,22 @@ function CampaignCard({
           <span className="font-ui text-[9px] tracking-[0.16em] uppercase text-green-mid border border-green-dim/60 px-[6px] py-[2px]">
             {roleLabel}
           </span>
-          {showLeaveMenu ? (
+          {menuAction ? (
             <RowMenu label={`Actions for ${campaign.name}`}>
               {(close) => (
                 <button
                   type="button"
                   onClick={() => {
                     close();
-                    onLeaveRequest?.(campaign.id, campaign.name);
+                    if (menuAction === 'leave') {
+                      onLeaveRequest?.(campaign.id, campaign.name);
+                    } else {
+                      onDeleteRequest?.(campaign.id, campaign.name);
+                    }
                   }}
                   className="dg-dropdown-item w-full text-left font-ui text-[10px] tracking-[0.14em] uppercase text-paper-worn px-3 py-[9px] hover:bg-red-faded/[0.08] hover:text-red-stamp transition-colors"
                 >
-                  Leave campaign
+                  {menuAction === 'leave' ? 'Leave campaign' : 'Delete campaign'}
                 </button>
               )}
             </RowMenu>

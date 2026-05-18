@@ -19,5 +19,6 @@ export {
 export {
   checkCampaignNameAvailable,
   createCampaign,
+  softDeleteCampaign,
   type CreateCampaignInput,
 } from './mutations';
