@@ -24,6 +24,7 @@ export type Campaign = {
   name: string;
   codename: string | null;
   description: string | null;
+  max_agents: number;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
