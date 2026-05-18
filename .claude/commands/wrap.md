@@ -119,8 +119,19 @@ Then proceed to step 6. Erik will open the PR himself.
 ## 6. Merge (PAUSE — ask first)
 
 This is on the ask-first list. Wait for Erik's explicit go-ahead before
-running `gh pr merge --squash`. Confirm Vercel preview deploy is green
-before merging (or ask Erik to check).
+running the merge. Confirm Vercel preview deploy is green (via `gh pr
+checks <PR#>`) or ask Erik to check.
+
+Prefer the combined form so the remote branch is deleted in the same
+round trip:
+
+```bash
+gh pr merge <PR#> --squash --delete-branch
+```
+
+`--delete-branch` removes the remote branch on GitHub and, when the local
+working copy is on the feature branch, also deletes the local branch and
+checks out main. Use it by default.
 
 **If step 5 went down path B (no `gh`)**, Erik will merge in the browser.
 Wait for his confirmation that the merge landed before moving to step 7.
@@ -141,7 +152,41 @@ confirmed by Erik in step 5B):
 Do not flip Linear to `In Review` before the PR is open. Status changes
 must reflect reality, not intent.
 
-## 8. Session Handoff paste-text (auto)
+## 8. Branch cleanup (auto, after merge confirmation)
+
+Return the local repo to a clean slate so the next `/ticket` starts from
+a healthy state. Run regardless of whether step 6 used `--delete-branch`
+— the commands no-op when there's nothing to do.
+
+```bash
+# Switch to main and fast-forward.
+git checkout main
+git pull --ff-only
+
+# Delete the local feature branch if it still exists. `-d` refuses to
+# delete unmerged work — that's the safety net. Don't use `-D` without
+# checking why `-d` failed.
+git branch -d <feature-branch> 2>/dev/null || true
+
+# If the remote branch wasn't deleted as part of `gh pr merge`, delete it
+# now. `gh pr merge --delete-branch` covers this in the common path, so
+# this command will usually fail-fast with "remote ref does not exist",
+# which is fine.
+git push origin --delete <feature-branch> 2>/dev/null || true
+
+# Drop any dangling `remotes/origin/...` refs so `git branch -a` is clean.
+git fetch --prune
+```
+
+Then run `git status` and `git branch -a` once to confirm:
+
+- `main` is current and clean
+- the feature branch is gone locally
+- the `remotes/origin/<feature-branch>` ref is no longer listed
+
+If any of those fail, stop and surface the diff — don't paper over it.
+
+## 9. Session Handoff paste-text (auto)
 
 Output a fenced block titled `Session Handoff entry — paste into Linear`.
 Use the template from `ticket-workflow`. Keep it tight — roughly the size
@@ -153,7 +198,7 @@ sideways in this session.** Tool failures, recovery steps, scope debates
 
 Do **not** write to the Session Handoff document directly. Erik pastes it.
 
-## 9. Wrap-up summary
+## 10. Wrap-up summary
 
 A short bullet list:
 
