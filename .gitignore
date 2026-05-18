@@ -31,3 +31,4 @@ supabase/.temp/.env.smoke
  
 # Temp files for PR body construction 
 tmp/ 
+tmp/
