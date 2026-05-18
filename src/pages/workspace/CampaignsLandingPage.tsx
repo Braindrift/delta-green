@@ -6,9 +6,11 @@
  * routing to `/campaigns/:id/operations`. The empty state mirrors the
  * wireframe (dashed-border card, "Create campaign" CTA).
  *
- * Right column: a placeholder for the Agent Panel (DEL-51). PC-1 owns the
- * eventual implementation; this page just reserves the column so the
- * layout doesn't reflow when DEL-51 lands.
+ * Right column: the Agent Panel (DEL-51). Minimal populated state — a
+ * `<select>` listing the caller's PCs and an "Open in roster" link. Empty
+ * state mirrors the campaigns column: dashed-border card prompting first
+ * PC creation, with a CTA routing to `/agents`. The full stats display,
+ * portrait, sheet view etc. land in DEF-2.
  *
  * Data:
  *   - `listMyMemberships()` returns membership rows joined with campaign
@@ -16,13 +18,13 @@
  *     `auth.uid()` rows already; the explicit `status = 'active'` filter
  *     and `campaign.deleted_at is null` join condition guard against
  *     soft-deleted campaigns and former memberships leaking through.
+ *   - `listMyPlayerCharacters()` fetches the caller's non-deleted roster
+ *     for the Agent Panel. Loading/error states render inline in the
+ *     panel without blocking the rest of the page.
  *   - States exposed: loading → error → empty → populated. Loading shows
  *     a stamped placeholder so the chrome doesn't visibly reflow.
  *
  * Stubs:
- *   - `+ New campaign` routes to `/campaigns/new` (M-2 / DEL-?). The route
- *     does not exist yet; the catch-all in `App.tsx` will bounce back to
- *     `/` until M-2 lands.
  *   - `Browse` is rendered as a disabled button with a `coming soon` tooltip
  *     per the issue's implementation notes. Real public browse lives in
  *     DEF-1 / DEL-?.
@@ -33,7 +35,9 @@ import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 
 import { listMyMemberships } from '@/lib/campaigns';
+import { listMyPlayerCharacters } from '@/lib/player-characters';
 import type { CampaignMembership } from '@/types/campaigns';
+import type { PlayerCharacterWithCampaign } from '@/types/player-characters';
 
 type LoadState =
   | { kind: 'loading' }
@@ -278,22 +282,139 @@ function EmptyCampaignsCard() {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Right column — Agent Panel placeholder                                    */
+/*  Right column — Agent Panel (DEL-51, minimum viable)                       */
 /* -------------------------------------------------------------------------- */
 
+type PanelState =
+  | { kind: 'loading' }
+  | { kind: 'error' }
+  | { kind: 'ready'; pcs: PlayerCharacterWithCampaign[] };
+
 function AgentPanelPlaceholder() {
+  const [state, setState] = useState<PanelState>({ kind: 'loading' });
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void listMyPlayerCharacters().then((result) => {
+      if (cancelled) return;
+      if (!result.ok) {
+        setState({ kind: 'error' });
+        return;
+      }
+      setState({ kind: 'ready', pcs: result.data });
+      // Default selection is the first PC. Selection is transient — DEF-2
+      // will introduce a persisted "active" pointer; v1 doesn't need it.
+      if (result.data.length > 0) setSelectedId(result.data[0].id);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <aside className="w-[340px] flex-shrink-0 border border-green-dim/60 bg-desk-edge p-5">
-      <div className="font-display text-[12px] font-light tracking-[0.22em] uppercase text-paper-worn mb-2">
+      <div className="font-display text-[12px] font-light tracking-[0.22em] uppercase text-paper-worn mb-3">
         Agent Panel
       </div>
-      <div className="font-stamp text-amber text-sm uppercase tracking-widest">
-        Section view — not yet implemented
-      </div>
-      <div className="font-ui text-[11px] mt-2 text-ink-faded/80 leading-relaxed">
-        Will be implemented in <span className="text-amber-dim">DEL-51</span>. Minimum-viable
-        player-character support (CRUD + accept-invite picker).
-      </div>
+
+      {state.kind === 'loading' ? (
+        <div className="font-ui text-[10px] tracking-[0.12em] uppercase text-green-mid">
+          Loading roster…
+        </div>
+      ) : null}
+
+      {state.kind === 'error' ? (
+        <div className="font-ui text-[11px] tracking-[0.04em] text-red-stamp leading-relaxed">
+          Could not load your agents.
+        </div>
+      ) : null}
+
+      {state.kind === 'ready' && state.pcs.length === 0 ? (
+        <AgentPanelEmpty />
+      ) : null}
+
+      {state.kind === 'ready' && state.pcs.length > 0 ? (
+        <AgentPanelPopulated
+          pcs={state.pcs}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+        />
+      ) : null}
     </aside>
+  );
+}
+
+function AgentPanelEmpty() {
+  return (
+    <div className="border border-dashed border-green-dim bg-transparent px-4 py-5 text-center flex flex-col items-center gap-2">
+      <p className="font-ui text-[11px] tracking-[0.12em] uppercase text-paper-dark/80">
+        No agents on file. Create your first agent. They'll be linked to a campaign when you join one.
+      </p>
+      <Link
+        to="/agents"
+        className={[
+          'mt-2 font-ui text-[10px] tracking-[0.22em] uppercase px-3 py-[7px]',
+          'text-green-accent border border-green-mid bg-green-accent/[0.06]',
+          'transition-all duration-150',
+          'hover:bg-green-accent/[0.12] hover:border-green-bright',
+          'hover:shadow-[0_0_12px_rgba(116,176,110,0.18)]',
+        ].join(' ')}
+      >
+        Create agent
+      </Link>
+    </div>
+  );
+}
+
+function AgentPanelPopulated({
+  pcs,
+  selectedId,
+  onSelect,
+}: {
+  pcs: PlayerCharacterWithCampaign[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <label
+        htmlFor="agent-panel-select"
+        className="font-ui text-[10px] tracking-[0.18em] text-green-bright uppercase"
+      >
+        Active agent
+      </label>
+      <select
+        id="agent-panel-select"
+        value={selectedId ?? ''}
+        onChange={(e) => onSelect(e.target.value)}
+        className={[
+          'w-full font-body text-[13px] text-paper bg-desk-groove',
+          'border border-green-dim px-3 py-[8px] tracking-[0.04em]',
+          'focus:outline-none focus:border-green-mid focus:bg-green-void',
+          'transition-colors duration-150',
+        ].join(' ')}
+      >
+        {pcs.map((pc) => (
+          <option key={pc.id} value={pc.id}>
+            {pc.name} · {pc.status}
+          </option>
+        ))}
+      </select>
+      <Link
+        to="/agents"
+        className={[
+          'self-start font-ui text-[10px] tracking-[0.22em] uppercase px-3 py-[7px]',
+          'text-green-accent border border-green-mid bg-green-accent/[0.06]',
+          'transition-all duration-150',
+          'hover:bg-green-accent/[0.12] hover:border-green-bright',
+          'hover:shadow-[0_0_12px_rgba(116,176,110,0.18)]',
+        ].join(' ')}
+      >
+        Open in roster
+      </Link>
+    </div>
   );
 }

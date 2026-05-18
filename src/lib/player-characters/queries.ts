@@ -1,0 +1,96 @@
+/**
+ * Player-character read queries against the deployed Supabase
+ * `player_characters` table.
+ *
+ * Returns the Result-shape from `@/lib/records/errors` rather than throwing,
+ * mirroring `@/lib/campaigns/queries`. RLS narrows the visible set to PCs
+ * the caller owns plus PCs attached to campaigns they're a member of
+ * (per `20260516140801_add_player_characters_table.sql`).
+ *
+ * Embedded campaign read: `campaign:campaigns(id, name)` joins through the
+ * `campaign_id` foreign key. Soft-deleted campaigns are hidden by the
+ * campaigns RLS read policy, so the embed will simply return `null` for
+ * attached PCs whose campaign was destroyed — the UI treats this as
+ * "unassigned" visually until DEF-2 adds a recovery surface.
+ */
+
+import { supabase } from '@/lib/supabase';
+import { mapPostgrestError, notFound, ok, unknown, type Result } from '@/lib/records/errors';
+import type {
+  PlayerCharacter,
+  PlayerCharacterWithCampaign,
+} from '@/types/player-characters';
+
+const PC_SELECT_WITH_CAMPAIGN =
+  'id, owner_id, campaign_id, name, archetype, data, status, created_at, updated_at, deleted_at, campaign:campaigns(id, name)';
+
+/**
+ * Fetch every non-deleted PC owned by the authenticated user, with the
+ * attached campaign's `name` embedded for the "In campaigns" section.
+ *
+ * The owner SELECT policy on `player_characters` does NOT filter
+ * `deleted_at` (intentionally, to support a future trash/restore flow),
+ * so the explicit `is('deleted_at', null)` here is the roster-screen
+ * filter — soft-deleted PCs don't appear in the list until a recovery UI
+ * lands (deferred to DEF-2).
+ *
+ * Ordered by `name` ascending for a stable alphabetical roster.
+ */
+export async function listMyPlayerCharacters(): Promise<
+  Result<PlayerCharacterWithCampaign[]>
+> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user.id;
+  if (!userId) {
+    return unknown(new Error('No authenticated session'));
+  }
+
+  const { data, error } = await supabase
+    .from('player_characters')
+    .select(PC_SELECT_WITH_CAMPAIGN)
+    .eq('owner_id', userId)
+    .is('deleted_at', null)
+    .order('name', { ascending: true });
+
+  if (error) return mapPostgrestError(error);
+
+  // PostgREST returns the embed as a single object on a to-one relation,
+  // but the generated TS types think it might be an array — narrow at the
+  // boundary so consumers see a clean `{ id, name } | null` value.
+  const rows = (data ?? []) as Array<
+    Omit<PlayerCharacterWithCampaign, 'campaign'> & {
+      campaign: { id: string; name: string } | { id: string; name: string }[] | null;
+    }
+  >;
+
+  return ok(
+    rows.map((row) => ({
+      ...row,
+      campaign: Array.isArray(row.campaign) ? row.campaign[0] ?? null : row.campaign,
+    })),
+  );
+}
+
+/**
+ * Fetch a single PC by id. Returns `not_found` when the row doesn't exist
+ * or RLS hides it from the caller — these are intentionally
+ * indistinguishable for the same information-leak posture as
+ * `getCampaignById`. Used by the edit modal to refresh the row after a
+ * successful update.
+ */
+export async function getPlayerCharacterById(
+  id: string,
+): Promise<Result<PlayerCharacter>> {
+  const { data, error } = await supabase
+    .from('player_characters')
+    .select('id, owner_id, campaign_id, name, archetype, data, status, created_at, updated_at, deleted_at')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === '22P02') return notFound();
+    return mapPostgrestError(error);
+  }
+  if (!data) return notFound();
+  return ok(data as PlayerCharacter);
+}
