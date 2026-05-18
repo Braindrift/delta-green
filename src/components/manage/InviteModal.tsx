@@ -1,21 +1,36 @@
 /**
- * Invite modal — two tabs (By email / Find user) for existing-user invites.
+ * Invite modal — two tabs (By email / Find user) for campaign invites.
+ *
+ * The "By email" tab handles two cases:
+ *
+ *   1. Email belongs to an existing user → insert with `invitee_user_id`
+ *      (existing-user invite, DEL-44).
+ *   2. Email has no matching user → insert with `invitee_email` and
+ *      dispatch the magic-link email via the `send-invitation-email`
+ *      edge function (stranger invite, DEL-45). The email pre-fills the
+ *      signup screen at `/invite/:token` so the recipient lands in the
+ *      accept flow once their account exists.
+ *
+ * The "Find user" tab is unchanged from DEL-44 — usernames only resolve
+ * to existing accounts.
  *
  * Internal state machine:
  *
- *   form  ── successful insert ──▶  sent
- *   form  ── conflict on insert ──▶ conflict
- *   form  ── "user not found"  ──▶ form (inline error, M-4↔M-5 boundary)
- *
- * The form view itself has two tabs but a single submit path: both end up
- * calling `inviteExistingUser({ campaignId, inviteeUserId })`. The
- * "By email" tab resolves email → user id via `findUserByEmail` first.
+ *   form  ── successful existing-user insert    ──▶ sent (existing)
+ *   form  ── successful stranger insert + send  ──▶ sent (stranger, ok)
+ *   form  ── stranger insert ok, email failed   ──▶ sent (stranger, undelivered)
+ *   form  ── conflict on insert                 ──▶ conflict
+ *   form  ── self-invite, etc.                  ──▶ form (inline error)
  *
  * Conflict detection happens twice — defensively client-side (against
  * the existing-member and pending-invite sets the parent passes in)
  * and at the DB via the partial unique on `campaign_invitations`. The
  * client check produces a friendlier UX without a round-trip; the DB
- * check is the source of truth and catches races.
+ * check is the source of truth and catches races. Stranger-invite
+ * duplicates are caught only by the DB (we don't carry pending-email
+ * sets through the prop surface — the conflict is rare and the partial
+ * unique on `(campaign_id, invitee_email) WHERE status = 'pending'`
+ * handles it cleanly).
  *
  * Self-invite is blocked client-side by comparing against the active
  * user's id. There's no DB-level guard — the Handler is already an
@@ -32,6 +47,10 @@ import {
   inviteExistingUser,
   searchUsersByUsername,
 } from '@/lib/members';
+import {
+  createStrangerInvitation,
+  sendInvitationEmail,
+} from '@/lib/invitations';
 import type { UserProfileSummary } from '@/types/members';
 import { ModalShell } from './ModalShell';
 
@@ -57,9 +76,22 @@ type TabId = 'by-email' | 'find-user';
 
 type ConflictKind = 'already_member' | 'already_invited';
 
+/**
+ * Delivery state for the stranger-invite "sent" view:
+ *
+ *   - `undelivered` covers the case where the row was inserted but the
+ *     edge function returned `email_provider_not_configured` (dev env).
+ *     The UI shifts copy to "row created, email not sent — Resend not
+ *     configured" so the Handler knows to share the link manually.
+ *   - `failed` covers other email-dispatch failures — same shape, slightly
+ *     different copy.
+ */
+type DeliveryState = 'delivered' | 'undelivered' | 'failed';
+
 type ViewState =
   | { kind: 'form' }
-  | { kind: 'sent'; handle: string }
+  | { kind: 'sent_existing'; handle: string }
+  | { kind: 'sent_stranger'; email: string; delivery: DeliveryState }
   | { kind: 'conflict'; conflict: ConflictKind; handle: string };
 
 export function InviteModal({
@@ -79,11 +111,10 @@ export function InviteModal({
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   /**
-   * Send the invite, handling client-side conflict + self-invite checks
-   * before hitting the DB. `handle` is the display label for the target
-   * — username or email — used in the success / conflict copy.
+   * Send an existing-user invite. Used by the Find-user tab and by the
+   * By-email tab when `findUserByEmail` resolves to a known user.
    */
-  async function sendInvite(targetUserId: string, handle: string) {
+  async function sendExistingUserInvite(targetUserId: string, handle: string) {
     if (submitting) return;
     setSubmitError(null);
 
@@ -123,11 +154,60 @@ export function InviteModal({
       return;
     }
 
-    setView({ kind: 'sent', handle });
+    setView({ kind: 'sent_existing', handle });
     onSent();
   }
 
-  if (view.kind === 'sent') {
+  /**
+   * Send a stranger invite by email. Inserts the row (`invitee_email`
+   * set, `invitee_user_id` null) and then invokes the
+   * `send-invitation-email` edge function. The two are decoupled: a
+   * failed email dispatch leaves the row intact so the Handler can
+   * re-send (or share the magic-link URL manually) without recreating
+   * the invitation. The "sent" view reflects the delivery state.
+   */
+  async function sendStrangerInvite(email: string) {
+    if (submitting) return;
+    setSubmitError(null);
+
+    setSubmitting(true);
+    const trimmedMessage = message.trim();
+    const insertResult = await createStrangerInvitation({
+      campaignId,
+      inviteeEmail: email,
+      message: trimmedMessage === '' ? null : trimmedMessage,
+    });
+
+    if (!insertResult.ok) {
+      setSubmitting(false);
+      if (insertResult.kind === 'conflict') {
+        setView({ kind: 'conflict', conflict: 'already_invited', handle: email });
+        return;
+      }
+      setSubmitError('Could not create the invitation. Try again.');
+      return;
+    }
+
+    // Row exists. Refresh the parent list now so the Handler sees the
+    // new pending row even if the email dispatch hangs or fails.
+    onSent();
+
+    const dispatch = await sendInvitationEmail(insertResult.data.id);
+    setSubmitting(false);
+
+    if (dispatch.ok) {
+      setView({ kind: 'sent_stranger', email, delivery: 'delivered' });
+      return;
+    }
+
+    setView({
+      kind: 'sent_stranger',
+      email,
+      delivery: dispatch.error.kind === 'not_configured' ? 'undelivered' : 'failed',
+    });
+  }
+
+  if (view.kind === 'sent_existing') {
     return (
       <ModalShell
         title="Invitation sent"
@@ -143,13 +223,50 @@ export function InviteModal({
           <button
             type="button"
             onClick={onClose}
-            className={[
-              'font-ui text-[11px] tracking-[0.22em] uppercase px-4 py-[9px]',
-              'text-green-accent border border-green-mid bg-green-accent/[0.06]',
-              'transition-all duration-150',
-              'hover:bg-green-accent/[0.12] hover:border-green-bright',
-              'hover:shadow-[0_0_12px_rgba(116,176,110,0.18)]',
-            ].join(' ')}
+            className={doneButtonClass}
+          >
+            Done
+          </button>
+        </div>
+      </ModalShell>
+    );
+  }
+
+  if (view.kind === 'sent_stranger') {
+    const delivered = view.delivery === 'delivered';
+    const title = delivered ? 'Invitation sent' : 'Invitation created';
+    const subtitle = delivered ? 'Email dispatched' : 'Email not sent';
+
+    return (
+      <ModalShell title={title} subtitle={subtitle} onClose={onClose} width={520}>
+        {delivered ? (
+          <p className="font-ui text-[12px] tracking-[0.04em] text-paper-worn leading-relaxed mb-5">
+            A magic-link invitation has been emailed to{' '}
+            <span className="text-paper">{view.email}</span>. The link walks
+            them through signup if they do not have an account yet.
+          </p>
+        ) : (
+          <>
+            <p className="font-ui text-[12px] tracking-[0.04em] text-paper-worn leading-relaxed mb-3">
+              The invitation row was created for{' '}
+              <span className="text-paper">{view.email}</span>, but the email
+              could not be delivered{' '}
+              {view.delivery === 'undelivered'
+                ? 'because the email provider is not configured for this environment'
+                : 'because the email provider returned an error'}
+              .
+            </p>
+            <p className="font-ui text-[11px] tracking-[0.04em] text-paper-worn leading-relaxed mb-5">
+              You can share the magic link directly. It is also visible to
+              you in the Pending invitations list.
+            </p>
+          </>
+        )}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className={doneButtonClass}
           >
             Done
           </button>
@@ -248,14 +365,15 @@ export function InviteModal({
 
       {tab === 'by-email' ? (
         <ByEmailTab
-          onResolved={sendInvite}
+          onResolvedExisting={sendExistingUserInvite}
+          onResolvedStranger={sendStrangerInvite}
           submitting={submitting}
           message={message}
           onMessageChange={setMessage}
         />
       ) : (
         <FindUserTab
-          onPick={sendInvite}
+          onPick={sendExistingUserInvite}
           submitting={submitting}
           message={message}
           onMessageChange={setMessage}
@@ -305,13 +423,22 @@ function TabButton({
 /* -------------------------------------------------------------------------- */
 
 type ByEmailTabProps = {
-  onResolved: (userId: string, handle: string) => void;
+  /** Called when the email resolves to an existing user. */
+  onResolvedExisting: (userId: string, handle: string) => void;
+  /** Called when the email doesn't match any user — stranger invite. */
+  onResolvedStranger: (email: string) => void;
   submitting: boolean;
   message: string;
   onMessageChange: (v: string) => void;
 };
 
-function ByEmailTab({ onResolved, submitting, message, onMessageChange }: ByEmailTabProps) {
+function ByEmailTab({
+  onResolvedExisting,
+  onResolvedStranger,
+  submitting,
+  message,
+  onMessageChange,
+}: ByEmailTabProps) {
   const [email, setEmail] = useState('');
   const [inlineError, setInlineError] = useState<string | null>(null);
   const [resolving, setResolving] = useState(false);
@@ -325,6 +452,10 @@ function ByEmailTab({ onResolved, submitting, message, onMessageChange }: ByEmai
       setInlineError('Enter an email address.');
       return;
     }
+    if (!isLikelyEmail(trimmed)) {
+      setInlineError('Enter a valid email address.');
+      return;
+    }
 
     setResolving(true);
     const result = await findUserByEmail(trimmed);
@@ -334,16 +465,16 @@ function ByEmailTab({ onResolved, submitting, message, onMessageChange }: ByEmai
       setInlineError('Could not look up that email. Try again.');
       return;
     }
+
     if (result.data === null) {
-      // M-4 / M-5 boundary. Once stranger-invite lands the inline error
-      // becomes a "create a magic-link invite →" CTA.
-      setInlineError(
-        'User with this email not found. Stranger-invite-by-email is coming soon.',
-      );
+      // Stranger-invite path (DEL-45). The Handler did not match a known
+      // account; create the email-only invitation and dispatch a magic
+      // link.
+      onResolvedStranger(trimmed);
       return;
     }
 
-    onResolved(result.data, trimmed);
+    onResolvedExisting(result.data, trimmed);
   }
 
   const busy = resolving || submitting;
@@ -579,3 +710,20 @@ const primaryButtonClass = [
   'focus:outline-none focus:border-green-accent focus:bg-green-accent/[0.14]',
   'disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:shadow-none',
 ].join(' ');
+
+const doneButtonClass = [
+  'font-ui text-[11px] tracking-[0.22em] uppercase px-4 py-[9px]',
+  'text-green-accent border border-green-mid bg-green-accent/[0.06]',
+  'transition-all duration-150',
+  'hover:bg-green-accent/[0.12] hover:border-green-bright',
+  'hover:shadow-[0_0_12px_rgba(116,176,110,0.18)]',
+].join(' ');
+
+/**
+ * Cheap email sanity check — not a full RFC validator. Keeps obvious typos
+ * out of the stranger-invite path; the DB has no email-shape constraint, so
+ * a stricter regex here is the only line of defence.
+ */
+function isLikelyEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}

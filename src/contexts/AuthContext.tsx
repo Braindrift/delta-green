@@ -22,12 +22,25 @@ type AuthActionResult = {
   error: AuthError | null;
 };
 
+/**
+ * Optional knobs for the signup call. Used today by the magic-link invite
+ * handoff (DEL-45) to land the user back on `/invite/:token` after they
+ * click the email confirmation link, so the claim RPC can run.
+ */
+export type SignUpOptions = {
+  emailRedirectTo?: string;
+};
+
 type AuthContextValue = {
   session: Session | null;
   user: User | null;
   /** True until the initial getSession() resolves. Use this to avoid flashing the login page. */
   loading: boolean;
-  signUp: (email: string, password: string) => Promise<SignUpResult>;
+  signUp: (
+    email: string,
+    password: string,
+    options?: SignUpOptions,
+  ) => Promise<SignUpResult>;
   signIn: (email: string, password: string) => Promise<AuthActionResult>;
   signOut: () => Promise<AuthActionResult>;
   /**
@@ -90,8 +103,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: session?.user ?? null,
       loading,
 
-      async signUp(email, password) {
-        const { data, error } = await supabase.auth.signUp({ email, password });
+      async signUp(email, password, options) {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: options?.emailRedirectTo
+            ? { emailRedirectTo: options.emailRedirectTo }
+            : undefined,
+        });
         if (error) {
           return { ok: false, needsEmailConfirmation: false, error };
         }
