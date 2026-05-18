@@ -13,3 +13,9 @@ export {
   listCampaigns,
   listMyMemberships,
 } from './queries';
+
+export {
+  checkCampaignNameAvailable,
+  createCampaign,
+  type CreateCampaignInput,
+} from './mutations';

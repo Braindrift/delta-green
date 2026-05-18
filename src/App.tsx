@@ -28,6 +28,7 @@ import {
 } from '@/pages/sections';
 import { SignupPage } from '@/pages/SignupPage';
 import { CampaignsLandingPage } from '@/pages/workspace/CampaignsLandingPage';
+import { CreateCampaignPage } from '@/pages/workspace/CreateCampaignPage';
 import { WorkspaceAgentsPage } from '@/pages/workspace/WorkspaceAgentsPage';
 import { WorkspaceNotificationsPage } from '@/pages/workspace/WorkspaceNotificationsPage';
 import { WorkspaceBrowsePage } from '@/pages/workspace/WorkspaceBrowsePage';
@@ -72,6 +73,7 @@ function App() {
             }
           >
             <Route index element={<CampaignsLandingPage />} />
+            <Route path="campaigns/new" element={<CreateCampaignPage />} />
             <Route path="agents" element={<WorkspaceAgentsPage />} />
             <Route path="notifications" element={<WorkspaceNotificationsPage />} />
             <Route path="browse" element={<WorkspaceBrowsePage />} />
