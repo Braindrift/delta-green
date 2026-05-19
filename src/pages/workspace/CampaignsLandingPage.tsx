@@ -130,8 +130,8 @@ export function CampaignsLandingPage() {
   );
 
   return (
-    <div className="flex gap-8 items-start">
-      <section className="flex-1 min-w-0">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+      <section>
         <PageHeader />
 
         {state.kind === 'loading' ? <LoadingCard /> : null}
@@ -463,7 +463,7 @@ function AgentPanelPlaceholder() {
   }, []);
 
   return (
-    <aside className="w-[340px] flex-shrink-0 border border-green-dim/60 bg-desk-edge p-5">
+    <aside className="border border-green-dim/60 bg-desk-edge p-5">
       <div className="font-display text-[12px] font-light tracking-[0.22em] uppercase text-paper-worn mb-3">
         Agent Panel
       </div>
