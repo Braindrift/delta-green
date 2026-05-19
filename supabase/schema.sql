@@ -329,20 +329,17 @@ begin
 end;
 $$;
 
--- Resolve a user's display handle: prefer `display_name` from
--- raw_user_meta_data, fall back to the email local-part. Same fallback
--- shape as `get_invitation_by_token`. Used by all three notification
--- triggers so the display rule lives in one place.
+-- Resolve a user's display handle by reading `user_profiles.username`
+-- (DEL-37). Single source of truth for display handles across the
+-- notification triggers and `get_invitation_by_token`. Returns null if
+-- no profile row exists (shouldn't happen post-backfill).
 create or replace function get_user_handle(p_user_id uuid)
 returns text language sql security definer stable
-set search_path = public, auth
+set search_path = public
 as $$
-  select coalesce(
-    nullif(u.raw_user_meta_data->>'display_name', ''),
-    split_part(u.email, '@', 1)
-  )
-  from auth.users u
-  where u.id = p_user_id;
+  select username::text
+  from user_profiles
+  where user_id = p_user_id;
 $$;
 
 -- Fan out an `invite_received` notification when a new invitation is
@@ -763,21 +760,18 @@ returns table (
   invitee_email  text
 )
 language sql security definer stable
-set search_path = public, auth
+set search_path = public
 as $$
   select
-    c.name                                                  as campaign_name,
-    coalesce(
-      nullif(u.raw_user_meta_data->>'display_name', ''),
-      split_part(u.email, '@', 1)
-    )                                                       as inviter_handle,
+    c.name              as campaign_name,
+    up.username::text   as inviter_handle,
     ci.status,
     ci.expires_at,
     ci.message,
     ci.invitee_email
   from campaign_invitations ci
-  join campaigns c   on c.id = ci.campaign_id
-  join auth.users u  on u.id = ci.invited_by
+  join campaigns c          on c.id = ci.campaign_id
+  left join user_profiles up on up.user_id = ci.invited_by
   where ci.token = p_token
     and ci.invitee_email is not null;
 $$;
