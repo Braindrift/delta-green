@@ -35,3 +35,4 @@ tmp/
 
 # Sublime
 *.sublime-project
+*.sublime-workspace
