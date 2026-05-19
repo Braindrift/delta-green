@@ -22,7 +22,7 @@ import type {
 } from '@/types/player-characters';
 
 const PC_SELECT_WITH_CAMPAIGN =
-  'id, owner_id, campaign_id, name, archetype, data, status, created_at, updated_at, deleted_at, campaign:campaigns(id, name)';
+  'id, owner_id, campaign_id, name, archetype, data, status, campaign_status, created_at, updated_at, deleted_at, campaign:campaigns(id, name)';
 
 /**
  * Fetch every non-deleted PC owned by the authenticated user, with the
@@ -73,10 +73,12 @@ export async function listMyPlayerCharacters(): Promise<
 
 /**
  * Fetch the joinable PC roster: PCs owned by the caller that can be
- * brought into a campaign right now. Filters `campaign_id is null`,
- * `status = 'unassigned'`, and `deleted_at is null` — the exact set the
- * DEL-46 accept-invite picker offers. Ordered by `name` ascending for
- * roster stability.
+ * brought into a campaign right now. Filters `campaign_status =
+ * 'unassigned'` and `deleted_at is null` — the exact set the DEL-46
+ * accept-invite picker offers. (The schema invariant guarantees
+ * `campaign_id is null` whenever `campaign_status = 'unassigned'`, so a
+ * redundant `is('campaign_id', null)` filter would be a no-op.) Ordered
+ * by `name` ascending for roster stability.
  *
  * Returned as the slim `PlayerCharacter` shape (no campaign embed) since
  * the picker only renders the name + archetype + notes — no campaign
@@ -94,12 +96,11 @@ export async function listJoinablePlayerCharacters(): Promise<
   const { data, error } = await supabase
     .from('player_characters')
     .select(
-      'id, owner_id, campaign_id, name, archetype, data, status, created_at, updated_at, deleted_at',
+      'id, owner_id, campaign_id, name, archetype, data, status, campaign_status, created_at, updated_at, deleted_at',
     )
     .eq('owner_id', userId)
-    .is('campaign_id', null)
     .is('deleted_at', null)
-    .eq('status', 'unassigned')
+    .eq('campaign_status', 'unassigned')
     .order('name', { ascending: true });
 
   if (error) return mapPostgrestError(error);
@@ -118,7 +119,7 @@ export async function getPlayerCharacterById(
 ): Promise<Result<PlayerCharacter>> {
   const { data, error } = await supabase
     .from('player_characters')
-    .select('id, owner_id, campaign_id, name, archetype, data, status, created_at, updated_at, deleted_at')
+    .select('id, owner_id, campaign_id, name, archetype, data, status, campaign_status, created_at, updated_at, deleted_at')
     .eq('id', id)
     .maybeSingle();
 

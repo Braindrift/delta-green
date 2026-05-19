@@ -238,8 +238,11 @@ begin
   -- Player characters
   -- --------------------------------------------------------
   -- Unassigned PC sitting in the owner's roster, no campaign attached.
+  -- `campaign_status` defaults to 'unassigned'; the iff invariant
+  -- (campaign_status='assigned' ↔ campaign_id is not null) is satisfied
+  -- because campaign_id is null.
   insert into player_characters (
-    id, owner_id, campaign_id, name, archetype, status, data
+    id, owner_id, campaign_id, name, archetype, status, campaign_status, data
   )
   values (
     gen_random_uuid(),
@@ -247,6 +250,7 @@ begin
     null,
     'Marcus Reeves',
     'Federal Agent',
+    'active',
     'unassigned',
     '{
       "stats": { "hp": 11, "wp": 12, "san": 60, "bp": 60 },
@@ -256,9 +260,11 @@ begin
   )
   returning id into v_pc_unassigned_id;
 
-  -- Active PC attached to the campaign — what the user is currently playing.
+  -- Active PC attached to the campaign — what the user is currently
+  -- playing. `campaign_status` must be 'assigned' because `campaign_id`
+  -- is set (schema check constraint).
   insert into player_characters (
-    id, owner_id, campaign_id, name, archetype, status, data
+    id, owner_id, campaign_id, name, archetype, status, campaign_status, data
   )
   values (
     gen_random_uuid(),
@@ -267,6 +273,7 @@ begin
     'Sandra Kovac',
     'Paramedic',
     'active',
+    'assigned',
     '{
       "stats": { "hp": 10, "wp": 11, "san": 55, "bp": 55 },
       "bonds": [
