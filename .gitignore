@@ -32,3 +32,6 @@ supabase/.temp/
 # Temp files for PR body construction 
 tmp/ 
 tmp/
+
+# Sublime
+*.sublime-project
