@@ -16,9 +16,12 @@
  *     `campaign_status` are preserved so the campaign Handler can still
  *     see the retired PC under its old attachment until DEF-2 adds a
  *     sheet view.
- *   - Soft-delete: callers (`/agents` page) only expose Delete for
- *     `campaign_status = 'unassigned'` rows. RLS only checks ownership,
- *     not membership, so the UI guard is the gate.
+ *   - Delete (DEL-63): unified PC → NPC migration via the
+ *     `delete_pc_to_npc` RPC. For unassigned PCs it's a hard delete; for
+ *     campaign-attached PCs the row is hard-deleted from the roster and
+ *     an NPC `agent` record is created in the campaign under Handler
+ *     control. Atomic — the RPC runs both writes plus the Handler
+ *     notification in a single transaction.
  */
 
 import { supabase } from '@/lib/supabase';
@@ -183,26 +186,40 @@ export async function retirePlayerCharacter(
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Soft-delete                                                               */
+/*  PC → NPC migration (delete from roster)                                   */
 /* -------------------------------------------------------------------------- */
 
 /**
- * Soft-delete a PC by stamping `deleted_at`. The "unassigned-only" rule
- * lives in the UI (the `/agents` row disables Delete for any non-unassigned
- * PC and routes the owner to Retire instead) — RLS only checks ownership,
- * not status, and we deliberately don't duplicate the guard here so the
- * mutation surface stays small and total.
+ * Result of a `delete_pc_to_npc` RPC call.
+ *
+ * `npcRecordId` is the id of the new NPC `agent` record in `records` when
+ * the deleted PC was campaign-attached; `null` when the PC was
+ * unassigned (nothing to migrate — pure roster delete).
  */
-export async function softDeletePlayerCharacter(
+export type MigratePlayerCharacterResult = { npcRecordId: string | null };
+
+/**
+ * Delete a PC from the owner's roster. The DB-side `delete_pc_to_npc`
+ * RPC owns the full sequence:
+ *
+ *   - Unassigned PC: hard-delete only.
+ *   - Campaign-attached PC: insert an NPC `agent` record into the
+ *     campaign's `records`, hard-delete the PC row, fire a `pc_detached`
+ *     notification on every active Handler of the campaign.
+ *
+ * All three writes land in the RPC's transaction; partial failures roll
+ * back. The RPC also re-checks `auth.uid() = pc.owner_id` server-side and
+ * raises if violated — RLS would block a cross-owner update on
+ * `player_characters` anyway, but the explicit guard belongs in the
+ * security-definer function too.
+ */
+export async function migratePlayerCharacterToNpc(
   id: string,
-): Promise<Result<PlayerCharacter>> {
-  const { data, error } = await supabase
-    .from('player_characters')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', id)
-    .select('*')
-    .single();
+): Promise<Result<MigratePlayerCharacterResult>> {
+  const { data, error } = await supabase.rpc('delete_pc_to_npc', {
+    p_pc_id: id,
+  });
 
   if (error) return mapPostgrestError(error);
-  return ok(data as PlayerCharacter);
+  return ok({ npcRecordId: (data as string | null) ?? null });
 }

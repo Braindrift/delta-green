@@ -23,6 +23,7 @@ export const NOTIFICATION_KINDS = [
   'handler_transferred',
   'handler_transfer_requested',
   'handler_transfer_declined',
+  'pc_detached',
 ] as const;
 
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
@@ -73,6 +74,24 @@ export type HandlerTransferredPayload = {
 };
 
 /**
+ * Owner deleted their PC from the roster while it was attached to a
+ * campaign. The PC row is gone; an NPC `agent` record has been created
+ * in the campaign under Handler control (see DEL-63's
+ * `delete_pc_to_npc` RPC). Fired to every active Handler of the campaign.
+ *
+ * `npc_record_id` points at the new `records` row; the inbox doesn't link
+ * to it in v1 (no record-detail surface yet) but it's there for future
+ * "view this NPC" navigation.
+ */
+export type PcDetachedPayload = {
+  campaign_id: string;
+  campaign_name: string | null;
+  former_owner_username: string | null;
+  pc_name: string;
+  npc_record_id: string;
+};
+
+/**
  * Discriminated union keyed on `kind`. Lets the inbox switch over `kind`
  * and get the right payload narrowing inside each branch.
  */
@@ -83,7 +102,8 @@ export type Notification =
   | NotificationBase<'campaign_deleted', CampaignDeletedPayload>
   | NotificationBase<'handler_transfer_requested', HandlerTransferRequestedPayload>
   | NotificationBase<'handler_transfer_declined', HandlerTransferDeclinedPayload>
-  | NotificationBase<'handler_transferred', HandlerTransferredPayload>;
+  | NotificationBase<'handler_transferred', HandlerTransferredPayload>
+  | NotificationBase<'pc_detached', PcDetachedPayload>;
 
 type NotificationBase<K extends NotificationKind, P> = {
   id: string;

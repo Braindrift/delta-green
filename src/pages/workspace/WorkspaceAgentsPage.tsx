@@ -6,18 +6,20 @@
  *   - "In campaigns · N" — PCs attached to a campaign.
  *
  * Per-row affordances live in a kebab menu: Edit / Retire / Delete. Delete
- * is disabled (with an explanatory tooltip) for attached PCs — per DoD, an
- * attached PC must be retired, not deleted, so the campaign-side history
- * stays intact.
+ * is always enabled (DEL-63) — for unassigned PCs it's a roster-only
+ * hard-delete, for campaign-attached PCs it triggers the PC → NPC
+ * migration via the `delete_pc_to_npc` RPC: the PC row is hard-deleted
+ * and an NPC `agent` record replaces it in the campaign so the
+ * campaign-side history survives under Handler control.
  *
  * Modals:
  *   - Create / edit use `AgentForm` inside `ModalShell`. The form is
  *     intentionally extractable — DEL-46's accept-invite PC-picker drops
  *     the same component inline.
- *   - Retire / Delete are local confirmation modals (two-button, success
- *     copies into a toast). The "Delete only when unassigned" rule lives
- *     at the row affordance — by the time the confirm modal opens, the
- *     status is already known to be unassigned.
+ *   - Retire is a local confirmation modal.
+ *   - Delete is a local confirmation modal that branches its copy on
+ *     `campaign_status` — assigned PCs get a stronger warning explaining
+ *     the NPC handover.
  *
  * Stats UI, portrait, bonds, sheet view, multi-PC swap, deceased/recovery
  * are deferred to DEF-2.
@@ -28,8 +30,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useToast } from '@/contexts/ToastContext';
 import {
   listMyPlayerCharacters,
+  migratePlayerCharacterToNpc,
   retirePlayerCharacter,
-  softDeletePlayerCharacter,
 } from '@/lib/player-characters';
 import type {
   PlayerCharacterStatus,
@@ -198,8 +200,15 @@ export function WorkspaceAgentsPage() {
           pc={dialog.pc}
           onClose={() => setDialog({ kind: 'closed' })}
           onConfirmed={() => {
+            const wasAttached = dialog.pc.campaign_status === 'assigned';
+            const campaignName = dialog.pc.campaign?.name ?? 'the campaign';
             setDialog({ kind: 'closed' });
-            showToast('success', 'Agent deleted.');
+            showToast(
+              'success',
+              wasAttached
+                ? `Agent transferred to ${campaignName} as NPC.`
+                : 'Agent deleted from roster.',
+            );
             void reload();
           }}
         />
@@ -271,7 +280,6 @@ function PcRow({
   onDelete: () => void;
 }) {
   const attached = pc.campaign_id !== null;
-  const canDelete = pc.campaign_status === 'unassigned';
 
   return (
     <li className="flex items-center gap-3 px-4 py-3 border-b border-green-dim/40 last:border-b-0">
@@ -322,12 +330,6 @@ function PcRow({
                 close();
                 onDelete();
               }}
-              disabled={!canDelete}
-              disabledHint={
-                attached
-                  ? 'Retire instead — attached to a campaign'
-                  : undefined
-              }
               tone="danger"
             >
               Delete
@@ -523,12 +525,14 @@ function DeleteConfirmModal({
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isAssigned = pc.campaign_status === 'assigned';
+  const campaignName = pc.campaign?.name ?? 'the campaign';
 
   async function handleConfirm() {
     if (submitting) return;
     setSubmitting(true);
     setError(null);
-    const result = await softDeletePlayerCharacter(pc.id);
+    const result = await migratePlayerCharacterToNpc(pc.id);
     setSubmitting(false);
     if (!result.ok) {
       setError('Could not delete this agent. Try again.');
@@ -540,14 +544,29 @@ function DeleteConfirmModal({
   return (
     <ModalShell
       title="Delete agent"
-      subtitle="Removes from roster"
+      subtitle={isAssigned ? 'Hands over to Handler' : 'Removes from roster'}
       onClose={onClose}
       preventClose={submitting}
       width={460}
     >
-      <p className="font-ui text-[12px] tracking-[0.04em] text-paper-worn leading-relaxed mb-5">
-        Delete <span className="text-paper">{pc.name}</span> from your roster?
-      </p>
+      {isAssigned ? (
+        <>
+          <p className="font-ui text-[12px] tracking-[0.04em] text-paper-worn leading-relaxed mb-3">
+            Delete <span className="text-paper">{pc.name}</span> from your roster?
+          </p>
+          <p className="font-ui text-[11px] tracking-[0.04em] text-paper-dark/80 leading-relaxed mb-5">
+            Removes this agent from your roster permanently. They will
+            continue to exist in{' '}
+            <span className="text-paper-worn">{campaignName}</span> as an
+            NPC under the Handler&rsquo;s control. This cannot be undone.
+          </p>
+        </>
+      ) : (
+        <p className="font-ui text-[12px] tracking-[0.04em] text-paper-worn leading-relaxed mb-5">
+          Delete <span className="text-paper">{pc.name}</span> from your
+          roster? This cannot be undone.
+        </p>
+      )}
 
       {error ? (
         <div
