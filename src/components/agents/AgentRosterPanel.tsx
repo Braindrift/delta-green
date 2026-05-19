@@ -5,10 +5,13 @@
  * `In Campaigns · N` sections grouped on `campaign_status` — with a
  * `+ New Agent` header affordance. Used in two places:
  *
- *   - Landing page right column (`variant="landing"`) — replaces the old
- *     "active-agent dropdown + open in roster" placeholder.
- *   - Standalone `/agents` page (`variant="page"`) — full-width, larger
- *     heading. Section content is identical to the landing-page variant.
+ *   - Landing page right column, paired with the Campaigns column to its
+ *     left (visually divided in `CampaignsLandingPage`).
+ *   - Standalone `/agents` page, full-width.
+ *
+ * Both surfaces share the same `AGENTS` heading + `Your dossier of
+ * player characters` subtitle so the landing-page pair reads as two
+ * halves of one desk (DEL-66 visual polish).
  *
  * Per-row affordances follow the post-DEL-32 design review (rows 6/7 of
  * `AgentPanel.png`):
@@ -37,6 +40,7 @@ import type {
   PlayerCharacterWithCampaign,
 } from '@/types/player-characters';
 import { AgentForm } from '@/components/agents/AgentForm';
+import { AgentInfoView } from '@/components/agents/AgentInfoView';
 import { ModalShell } from '@/components/manage/ModalShell';
 import { RowMenu } from '@/components/common/RowMenu';
 
@@ -50,12 +54,19 @@ type DialogState =
   | { kind: 'create' }
   | { kind: 'delete'; pc: PlayerCharacterWithCampaign };
 
-export type AgentRosterPanelVariant = 'landing' | 'page';
+/**
+ * Panel body view-switching (DEL-66). The roster view is the default; OPEN
+ * on a row promotes the panel into the Agent Info View for that PC. BACK
+ * returns to the roster. State is local — refreshing the page returns to
+ * the roster (URL-based deep linking is DEL-53 territory).
+ */
+type ViewMode = { kind: 'roster' } | { kind: 'info'; pcId: string };
 
-export function AgentRosterPanel({ variant }: { variant: AgentRosterPanelVariant }) {
+export function AgentRosterPanel() {
   const { showToast } = useToast();
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [dialog, setDialog] = useState<DialogState>({ kind: 'closed' });
+  const [viewMode, setViewMode] = useState<ViewMode>({ kind: 'roster' });
 
   const reload = useCallback(async () => {
     setState({ kind: 'loading' });
@@ -89,44 +100,63 @@ export function AgentRosterPanel({ variant }: { variant: AgentRosterPanelVariant
   const isReady = state.kind === 'ready';
   const isEmpty = isReady && unassigned.length === 0 && assigned.length === 0;
 
-  const wrapperClass =
-    variant === 'landing'
-      ? 'border border-green-dim/60 bg-desk-edge p-5'
-      : '';
+  // If we're in info mode but the PC vanished from the roster after a
+  // reload (deleted in another tab, etc.), fall back to the roster view
+  // so the panel doesn't render an empty AIV. `viewMode` itself stays on
+  // 'info' until the user takes an action — harmless because rendering
+  // is driven by `showRoster`.
+  const activePc =
+    viewMode.kind === 'info' && isReady
+      ? state.pcs.find((p) => p.id === viewMode.pcId) ?? null
+      : null;
+
+  const showRoster = viewMode.kind === 'roster' || !activePc;
 
   return (
-    <section className={wrapperClass}>
+    <section>
       <Header
-        variant={variant}
         disabled={!isReady}
         onCreate={() => setDialog({ kind: 'create' })}
+        showCreate={showRoster}
       />
 
-      {state.kind === 'loading' ? <LoadingCard /> : null}
-      {state.kind === 'error' ? <ErrorCard onRetry={() => void reload()} /> : null}
+      {showRoster ? (
+        <>
+          {state.kind === 'loading' ? <LoadingCard /> : null}
+          {state.kind === 'error' ? <ErrorCard onRetry={() => void reload()} /> : null}
 
-      {isReady && isEmpty ? (
-        <EmptyRosterCard onCreate={() => setDialog({ kind: 'create' })} />
-      ) : null}
+          {isReady && isEmpty ? (
+            <EmptyRosterCard onCreate={() => setDialog({ kind: 'create' })} />
+          ) : null}
 
-      {isReady && !isEmpty ? (
-        <div className="flex flex-col gap-8">
-          <PcSection
-            title="Unassigned"
-            count={unassigned.length}
-            pcs={unassigned}
-            emptyText="No unassigned agents. Join a campaign or retire an existing one."
-            onDelete={(pc) => setDialog({ kind: 'delete', pc })}
-          />
-          <PcSection
-            title="In Campaigns"
-            count={assigned.length}
-            pcs={assigned}
-            emptyText="No agents are currently deployed."
-            onDelete={(pc) => setDialog({ kind: 'delete', pc })}
-          />
-        </div>
-      ) : null}
+          {isReady && !isEmpty ? (
+            <div className="flex flex-col gap-8">
+              <PcSection
+                title="Unassigned"
+                count={unassigned.length}
+                pcs={unassigned}
+                emptyText="No unassigned agents. Join a campaign or retire an existing one."
+                onOpen={(pc) => setViewMode({ kind: 'info', pcId: pc.id })}
+                onDelete={(pc) => setDialog({ kind: 'delete', pc })}
+              />
+              <PcSection
+                title="In Campaigns"
+                count={assigned.length}
+                pcs={assigned}
+                emptyText="No agents are currently deployed."
+                onOpen={(pc) => setViewMode({ kind: 'info', pcId: pc.id })}
+                onDelete={(pc) => setDialog({ kind: 'delete', pc })}
+              />
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <AgentInfoView
+          pc={activePc!}
+          onBack={() => setViewMode({ kind: 'roster' })}
+          onMutated={() => void reload()}
+        />
+      )}
 
       {dialog.kind === 'create' ? (
         <ModalShell
@@ -174,36 +204,28 @@ export function AgentRosterPanel({ variant }: { variant: AgentRosterPanelVariant
 /* -------------------------------------------------------------------------- */
 
 function Header({
-  variant,
   disabled,
   onCreate,
+  showCreate,
 }: {
-  variant: AgentRosterPanelVariant;
   disabled: boolean;
   onCreate: () => void;
+  /** Hide the `+ New Agent` button when the panel is showing the AIV
+   *  rather than the roster — creating from inside another PC's dossier
+   *  is confusing UX. */
+  showCreate: boolean;
 }) {
-  if (variant === 'page') {
-    return (
-      <header className="mb-7 flex items-end justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="font-display text-[26px] font-light tracking-[0.18em] uppercase text-paper">
-            Agents
-          </h1>
-          <p className="font-ui text-[11px] tracking-[0.14em] text-green-mid mt-1 uppercase">
-            Your player characters
-          </p>
-        </div>
-        <NewAgentButton disabled={disabled} onClick={onCreate} />
-      </header>
-    );
-  }
-
   return (
-    <header className="mb-4 flex items-center justify-between gap-3">
-      <div className="font-display text-[12px] font-light tracking-[0.22em] uppercase text-paper-worn">
-        Agent Panel
+    <header className="mb-7 flex items-end justify-between gap-4 flex-wrap">
+      <div>
+        <h1 className="font-display text-[26px] font-light tracking-[0.18em] uppercase text-paper">
+          Agents
+        </h1>
+        <p className="font-ui text-[11px] tracking-[0.14em] text-green-mid mt-1 uppercase">
+          Your dossier of player characters
+        </p>
       </div>
-      <NewAgentButton disabled={disabled} onClick={onCreate} />
+      {showCreate ? <NewAgentButton disabled={disabled} onClick={onCreate} /> : null}
     </header>
   );
 }
@@ -237,10 +259,11 @@ type PcSectionProps = {
   count: number;
   pcs: PlayerCharacterWithCampaign[];
   emptyText: string;
+  onOpen: (pc: PlayerCharacterWithCampaign) => void;
   onDelete: (pc: PlayerCharacterWithCampaign) => void;
 };
 
-function PcSection({ title, count, pcs, emptyText, onDelete }: PcSectionProps) {
+function PcSection({ title, count, pcs, emptyText, onOpen, onDelete }: PcSectionProps) {
   return (
     <section>
       <h2 className="font-display text-[13px] font-light tracking-[0.22em] uppercase text-paper-worn mb-3">
@@ -254,7 +277,12 @@ function PcSection({ title, count, pcs, emptyText, onDelete }: PcSectionProps) {
         ) : (
           <ul>
             {pcs.map((pc) => (
-              <PcRow key={pc.id} pc={pc} onDelete={() => onDelete(pc)} />
+              <PcRow
+                key={pc.id}
+                pc={pc}
+                onOpen={() => onOpen(pc)}
+                onDelete={() => onDelete(pc)}
+              />
             ))}
           </ul>
         )}
@@ -265,9 +293,11 @@ function PcSection({ title, count, pcs, emptyText, onDelete }: PcSectionProps) {
 
 function PcRow({
   pc,
+  onOpen,
   onDelete,
 }: {
   pc: PlayerCharacterWithCampaign;
+  onOpen: () => void;
   onDelete: () => void;
 }) {
   const isAssigned = pc.campaign_status === 'assigned';
@@ -306,9 +336,7 @@ function PcRow({
 
       <button
         type="button"
-        onClick={() => {
-          // TODO(DEL-66): open Agent Info View for this PC.
-        }}
+        onClick={onOpen}
         className={rowPrimaryButtonClass}
       >
         Open
