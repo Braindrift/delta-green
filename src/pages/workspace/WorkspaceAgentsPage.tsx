@@ -12,5 +12,5 @@
 import { AgentRosterPanel } from '@/components/agents/AgentRosterPanel';
 
 export function WorkspaceAgentsPage() {
-  return <AgentRosterPanel variant="page" />;
+  return <AgentRosterPanel />;
 }

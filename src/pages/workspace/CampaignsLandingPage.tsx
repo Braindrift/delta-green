@@ -124,8 +124,8 @@ export function CampaignsLandingPage() {
   );
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-      <section>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-0 items-stretch">
+      <section className="lg:pr-8 lg:border-r lg:border-green-dim">
         <PageHeader />
 
         {state.kind === 'loading' ? <LoadingCard /> : null}
@@ -154,7 +154,9 @@ export function CampaignsLandingPage() {
         ) : null}
       </section>
 
-      <AgentRosterPanel variant="landing" />
+      <div className="lg:pl-8">
+        <AgentRosterPanel />
+      </div>
 
       {dialog.kind === 'leave' ? (
         <LeaveCampaignModal
