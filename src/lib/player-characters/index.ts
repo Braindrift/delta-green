@@ -14,9 +14,10 @@ export {
 
 export {
   createPlayerCharacter,
+  migratePlayerCharacterToNpc,
   retirePlayerCharacter,
-  softDeletePlayerCharacter,
   updatePlayerCharacter,
   type CreatePlayerCharacterInput,
+  type MigratePlayerCharacterResult,
   type UpdatePlayerCharacterInput,
 } from './mutations';

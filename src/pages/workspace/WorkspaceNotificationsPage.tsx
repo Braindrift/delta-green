@@ -37,6 +37,7 @@ import type {
   InviteDeclinedPayload,
   InviteReceivedPayload,
   Notification,
+  PcDetachedPayload,
 } from '@/types/notifications';
 
 export function WorkspaceNotificationsPage() {
@@ -246,6 +247,8 @@ function renderForKind(n: Notification): RowView {
       return renderTransferDeclined(n.payload);
     case 'handler_transferred':
       return renderTransferred(n.payload);
+    case 'pc_detached':
+      return renderPcDetached(n.payload);
   }
 }
 
@@ -340,6 +343,26 @@ function renderTransferDeclined(p: HandlerTransferDeclinedPayload): RowView {
       </>
     ),
     body: 'You remain Handler of this campaign.',
+  };
+}
+
+function renderPcDetached(p: PcDetachedPayload): RowView {
+  const formerOwner = p.former_owner_username ?? 'A player';
+  const campaign = p.campaign_name ?? 'this campaign';
+  return {
+    icon: '⌧',
+    title: (
+      <>
+        <strong className="text-paper">{formerOwner}</strong> deleted their
+        agent <strong className="text-paper">{p.pc_name}</strong>
+      </>
+    ),
+    body: (
+      <>
+        They now exist as an NPC in{' '}
+        <strong className="text-paper">{campaign}</strong>.
+      </>
+    ),
   };
 }
 
