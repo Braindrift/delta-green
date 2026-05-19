@@ -147,29 +147,35 @@ create index sessions_operation_id_idx on sessions(operation_id);
 -- attached to a campaign (`campaign_id is not null`) or sitting in the
 -- owner's roster (`campaign_id is null`). On hard campaign deletion the FK
 -- is `set null` so the PC survives. See DEL-33 migration for full notes.
+--
+-- After DEL-62, `status` is the pure in-game lifecycle column and
+-- `campaign_status` carries the membership concept. The schema-level
+-- invariant `(campaign_status = 'assigned') = (campaign_id is not null)`
+-- prevents the two halves of the membership representation from drifting.
 create table player_characters (
-  id          uuid primary key default gen_random_uuid(),
-  owner_id    uuid not null references auth.users(id) on delete cascade,
-  campaign_id uuid references campaigns(id) on delete set null,
-  name        text not null,
-  archetype   text,
-  data        jsonb not null default '{}',
-  status      text not null default 'unassigned',
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now(),
-  deleted_at  timestamptz,
+  id              uuid primary key default gen_random_uuid(),
+  owner_id        uuid not null references auth.users(id) on delete cascade,
+  campaign_id     uuid references campaigns(id) on delete set null,
+  name            text not null,
+  archetype       text,
+  data            jsonb not null default '{}',
+  status          text not null default 'active',
+  campaign_status text not null default 'unassigned',
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  deleted_at      timestamptz,
 
-  constraint player_characters_status_valid check (status in (
-    'unassigned',
-    'active',
-    'retired',
-    'deceased',
-    'former'
-  ))
+  constraint player_characters_status_valid
+    check (status in ('active', 'retired', 'deceased')),
+  constraint player_characters_campaign_status_valid
+    check (campaign_status in ('assigned', 'unassigned')),
+  constraint player_characters_campaign_status_matches_campaign_id
+    check ((campaign_status = 'assigned') = (campaign_id is not null))
 );
 
-create index player_characters_owner_id_idx    on player_characters(owner_id);
-create index player_characters_campaign_id_idx on player_characters(campaign_id);
+create index player_characters_owner_id_idx              on player_characters(owner_id);
+create index player_characters_campaign_id_idx           on player_characters(campaign_id);
+create index player_characters_owner_campaign_status_idx on player_characters(owner_id, campaign_status);
 create index player_characters_deleted_at_idx
   on player_characters(deleted_at)
   where deleted_at is null;

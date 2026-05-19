@@ -14,12 +14,23 @@
  * a freeform text field captured in the create/edit form.
  */
 
-export type PlayerCharacterStatus =
-  | 'unassigned'
-  | 'active'
-  | 'retired'
-  | 'deceased'
-  | 'former';
+/**
+ * In-game lifecycle status. Owner-controlled and orthogonal to campaign
+ * attachment — a `retired` PC can still be `assigned` to a campaign (the
+ * Handler keeps reading the row); a `deceased` PC stays attached to the
+ * campaign it died in until the owner deletes it. The membership concept
+ * ("is this PC currently in a campaign?") lives on [[campaign_status]].
+ */
+export type PlayerCharacterStatus = 'active' | 'retired' | 'deceased';
+
+/**
+ * Campaign-attachment state. Mirrors `campaign_id is not null`: the
+ * schema enforces the iff invariant via a check constraint. System-
+ * managed by the join / leave / kick flows — the `/agents` create flow
+ * starts a PC at `'unassigned'`, the assign-to-campaign dialog promotes
+ * it to `'assigned'`, and PC→NPC migration (DEL-63) walks it back.
+ */
+export type PlayerCharacterCampaignStatus = 'assigned' | 'unassigned';
 
 /**
  * Owner-controllable JSONB pocket. v1 holds only `notes`; DEF-2 will extend
@@ -40,6 +51,7 @@ export type PlayerCharacter = {
   archetype: string | null;
   data: PlayerCharacterData;
   status: PlayerCharacterStatus;
+  campaign_status: PlayerCharacterCampaignStatus;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;

@@ -271,7 +271,7 @@ function PcRow({
   onDelete: () => void;
 }) {
   const attached = pc.campaign_id !== null;
-  const canDelete = pc.status === 'unassigned' && !attached;
+  const canDelete = pc.campaign_status === 'unassigned';
 
   return (
     <li className="flex items-center gap-3 px-4 py-3 border-b border-green-dim/40 last:border-b-0">
@@ -326,9 +326,7 @@ function PcRow({
               disabledHint={
                 attached
                   ? 'Retire instead — attached to a campaign'
-                  : pc.status !== 'unassigned'
-                    ? 'Only unassigned agents can be deleted'
-                    : undefined
+                  : undefined
               }
               tone="danger"
             >
@@ -351,11 +349,9 @@ function StatusBadge({ status }: { status: PlayerCharacterStatus }) {
 }
 
 const STATUS_LABELS: Record<PlayerCharacterStatus, string> = {
-  unassigned: 'Unassigned',
   active: 'Active',
   retired: 'Retired',
   deceased: 'Deceased',
-  former: 'Former',
 };
 
 /* -------------------------------------------------------------------------- */

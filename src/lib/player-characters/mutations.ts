@@ -9,19 +9,16 @@
  *
  * Status transitions enforced client-side (the DB only validates the
  * status enum, not the transition graph):
- *   - Create: always `status = 'unassigned'`, `campaign_id = null`.
- *   - Retire: any status → `'retired'`. `campaign_id` is preserved so the
- *     campaign Handler can still see the retired PC under its old
- *     attachment until DEF-2 adds a sheet view.
- *   - Soft-delete: only allowed when `status = 'unassigned'`. PCs attached
- *     to a campaign must be retired (not deleted) so the campaign history
- *     stays intact. The caller (`/agents` page) hides the Delete affordance
- *     for non-unassigned rows; this function is the second line of
- *     defence — it pre-fetches the row and rejects the delete locally if
- *     the status doesn't match.
- *
- * `active` and `former` are reserved for the join/leave/kick flows and are
- * not reachable from this file.
+ *   - Create: always `status = 'active'`, `campaign_status = 'unassigned'`,
+ *     `campaign_id = null`. After DEL-62 `status` is the pure in-game
+ *     lifecycle column; membership lives on `campaign_status`.
+ *   - Retire: any status → `'retired'`. `campaign_id` /
+ *     `campaign_status` are preserved so the campaign Handler can still
+ *     see the retired PC under its old attachment until DEF-2 adds a
+ *     sheet view.
+ *   - Soft-delete: callers (`/agents` page) only expose Delete for
+ *     `campaign_status = 'unassigned'` rows. RLS only checks ownership,
+ *     not membership, so the UI guard is the gate.
  */
 
 import { supabase } from '@/lib/supabase';
@@ -69,7 +66,8 @@ export async function createPlayerCharacter(
     name: input.name,
     archetype: input.archetype?.trim() ? input.archetype.trim() : null,
     data,
-    status: 'unassigned' as const,
+    status: 'active' as const,
+    campaign_status: 'unassigned' as const,
   };
 
   const { data: inserted, error } = await supabase
