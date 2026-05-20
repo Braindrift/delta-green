@@ -41,6 +41,7 @@ import type {
 } from '@/types/player-characters';
 import { AgentForm } from '@/components/agents/AgentForm';
 import { AgentInfoView } from '@/components/agents/AgentInfoView';
+import { AssignToCampaignModal } from '@/components/agents/AssignToCampaignModal';
 import { ModalShell } from '@/components/manage/ModalShell';
 import { RowMenu } from '@/components/common/RowMenu';
 
@@ -52,6 +53,7 @@ type LoadState =
 type DialogState =
   | { kind: 'closed' }
   | { kind: 'create' }
+  | { kind: 'assign'; pc: PlayerCharacterWithCampaign }
   | { kind: 'delete'; pc: PlayerCharacterWithCampaign };
 
 /**
@@ -97,6 +99,19 @@ export function AgentRosterPanel() {
     [state],
   );
 
+  // Campaigns where the owner already has a PC attached. Passed to the
+  // assign dialog so it can filter the eligible-memberships dropdown
+  // without re-fetching the roster. Stable reference across renders so
+  // the modal's effect doesn't re-run on every parent state tick.
+  const attachedCampaignIds = useMemo(() => {
+    if (state.kind !== 'ready') return new Set<string>();
+    const ids = new Set<string>();
+    for (const pc of state.pcs) {
+      if (pc.campaign_id) ids.add(pc.campaign_id);
+    }
+    return ids;
+  }, [state]);
+
   const isReady = state.kind === 'ready';
   const isEmpty = isReady && unassigned.length === 0 && assigned.length === 0;
 
@@ -137,6 +152,7 @@ export function AgentRosterPanel() {
                 pcs={unassigned}
                 emptyText="No unassigned agents. Join a campaign or retire an existing one."
                 onOpen={(pc) => setViewMode({ kind: 'info', pcId: pc.id })}
+                onAssign={(pc) => setDialog({ kind: 'assign', pc })}
                 onDelete={(pc) => setDialog({ kind: 'delete', pc })}
               />
               <PcSection
@@ -145,6 +161,7 @@ export function AgentRosterPanel() {
                 pcs={assigned}
                 emptyText="No agents are currently deployed."
                 onOpen={(pc) => setViewMode({ kind: 'info', pcId: pc.id })}
+                onAssign={(pc) => setDialog({ kind: 'assign', pc })}
                 onDelete={(pc) => setDialog({ kind: 'delete', pc })}
               />
             </div>
@@ -175,6 +192,19 @@ export function AgentRosterPanel() {
             }}
           />
         </ModalShell>
+      ) : null}
+
+      {dialog.kind === 'assign' ? (
+        <AssignToCampaignModal
+          pc={dialog.pc}
+          attachedCampaignIds={attachedCampaignIds}
+          onClose={() => setDialog({ kind: 'closed' })}
+          onAssigned={(campaignName) => {
+            setDialog({ kind: 'closed' });
+            showToast('success', `Agent assigned to ${campaignName}.`);
+            void reload();
+          }}
+        />
       ) : null}
 
       {dialog.kind === 'delete' ? (
@@ -260,10 +290,19 @@ type PcSectionProps = {
   pcs: PlayerCharacterWithCampaign[];
   emptyText: string;
   onOpen: (pc: PlayerCharacterWithCampaign) => void;
+  onAssign: (pc: PlayerCharacterWithCampaign) => void;
   onDelete: (pc: PlayerCharacterWithCampaign) => void;
 };
 
-function PcSection({ title, count, pcs, emptyText, onOpen, onDelete }: PcSectionProps) {
+function PcSection({
+  title,
+  count,
+  pcs,
+  emptyText,
+  onOpen,
+  onAssign,
+  onDelete,
+}: PcSectionProps) {
   return (
     <section>
       <h2 className="font-display text-[13px] font-light tracking-[0.22em] uppercase text-paper-worn mb-3">
@@ -281,6 +320,7 @@ function PcSection({ title, count, pcs, emptyText, onOpen, onDelete }: PcSection
                 key={pc.id}
                 pc={pc}
                 onOpen={() => onOpen(pc)}
+                onAssign={() => onAssign(pc)}
                 onDelete={() => onDelete(pc)}
               />
             ))}
@@ -294,10 +334,12 @@ function PcSection({ title, count, pcs, emptyText, onOpen, onDelete }: PcSection
 function PcRow({
   pc,
   onOpen,
+  onAssign,
   onDelete,
 }: {
   pc: PlayerCharacterWithCampaign;
   onOpen: () => void;
+  onAssign: () => void;
   onDelete: () => void;
 }) {
   const isAssigned = pc.campaign_status === 'assigned';
@@ -325,9 +367,7 @@ function PcRow({
       ) : (
         <button
           type="button"
-          onClick={() => {
-            // TODO(DEL-67): open assign-to-campaign dialog.
-          }}
+          onClick={onAssign}
           className={rowSecondaryButtonClass}
         >
           Assign
