@@ -163,6 +163,39 @@ export async function updatePlayerCharacter(
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Assign to campaign                                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Attach an unassigned PC to a campaign the caller plays in. Sets
+ * `campaign_id` and flips `campaign_status` to `'assigned'` in one PATCH
+ * — the DEL-62 check constraint enforces the iff invariant between those
+ * two columns, so any partial write would be rejected server-side.
+ *
+ * RLS already gates the row to `owner_id = auth.uid()`. The caller is
+ * expected to have validated eligibility (active player membership + no
+ * existing PC in the target campaign); a stale UI that races past that
+ * check will still be rejected by the campaigns SELECT policy / member
+ * read or simply produce a row the Handler can later resolve — the
+ * invariant constraint guarantees the database never ends up in a
+ * contradictory state.
+ */
+export async function assignPlayerCharacterToCampaign(
+  pcId: string,
+  campaignId: string,
+): Promise<Result<PlayerCharacter>> {
+  const { data, error } = await supabase
+    .from('player_characters')
+    .update({ campaign_id: campaignId, campaign_status: 'assigned' })
+    .eq('id', pcId)
+    .select('*')
+    .single();
+
+  if (error) return mapPostgrestError(error);
+  return ok(data as PlayerCharacter);
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Retire                                                                    */
 /* -------------------------------------------------------------------------- */
 

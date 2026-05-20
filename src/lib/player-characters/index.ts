@@ -13,6 +13,7 @@ export {
 } from './queries';
 
 export {
+  assignPlayerCharacterToCampaign,
   createPlayerCharacter,
   migratePlayerCharacterToNpc,
   retirePlayerCharacter,
