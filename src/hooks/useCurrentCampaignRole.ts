@@ -160,12 +160,15 @@ export function useCurrentCampaignRole(): CurrentCampaignRole {
       // `ok(null)` by `getMyMembershipRole` itself, so this branch is only
       // `forbidden` / `conflict` / `unknown`) collapses to the unknown
       // surface. Consumers branching on `error.kind` only ever see one
-      // kind here.
+      // kind here. `'cause' in result` narrows out the `not_found`
+      // variant, which is unreachable but still part of the `Err` union
+      // typewise.
+      const cause = 'cause' in result ? result.cause : undefined;
       setLoaded({
         campaignId,
         userId,
         role: null,
-        error: { kind: 'unknown', cause: result.cause },
+        error: { kind: 'unknown', cause },
       });
     });
 
