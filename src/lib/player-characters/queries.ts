@@ -108,6 +108,31 @@ export async function listJoinablePlayerCharacters(): Promise<
 }
 
 /**
+ * Fetch the minimal PC roster for a single campaign — just `owner_id` and
+ * `name`, for `CampaignInfoPanel` (DEL-70) to merge into the member list.
+ * Filters `deleted_at is null`; the campaign's RLS on `player_characters`
+ * already restricts visibility to active members of the campaign.
+ *
+ * Returns the slim `{ owner_id, name }` shape rather than the full PC row
+ * because the consumer only needs the name to display next to a member's
+ * username. Ordered by `name` ascending for stable display when a single
+ * user has multiple PCs in the same campaign (unusual but allowed).
+ */
+export async function listCampaignPcs(
+  campaignId: string,
+): Promise<Result<{ owner_id: string; name: string }[]>> {
+  const { data, error } = await supabase
+    .from('player_characters')
+    .select('owner_id, name')
+    .eq('campaign_id', campaignId)
+    .is('deleted_at', null)
+    .order('name', { ascending: true });
+
+  if (error) return mapPostgrestError(error);
+  return ok((data ?? []) as { owner_id: string; name: string }[]);
+}
+
+/**
  * Fetch a single PC by id. Returns `not_found` when the row doesn't exist
  * or RLS hides it from the caller — these are intentionally
  * indistinguishable for the same information-leak posture as
