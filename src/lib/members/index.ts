@@ -7,6 +7,7 @@
 
 export {
   findUserByEmail,
+  getMyMembershipRole,
   listCampaignMembers,
   listPendingInvitations,
   searchUsersByUsername,
