@@ -6,56 +6,39 @@
  *   - Handler resolves → renders children.
  *   - Agent resolves → redirects to `/` and fires an error toast.
  *   - No active membership → redirects to `/` and fires an error toast.
+ *   - Unknown fetch failure → redirects + toast (failed reads collapse
+ *     into the same "you can't be here" surface).
  *
- * `useCurrentCampaign`, `useToast`, and `getMyRoleInCampaign` are all mocked at
- * the module boundary. The guard's contract is "given these three inputs,
- * produce one of three outputs"; the tests pin each combination directly
- * rather than wiring up real providers.
+ * DEL-74 swapped the local fetch for `useCurrentCampaignRole`, so the
+ * test mocks the hook directly. `useToast` is also mocked because the
+ * guard fires the denied toast from there.
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 // ---- mocks ----------------------------------------------------------------
 
-const { useCurrentCampaignMock, useToastMock, getMyRoleInCampaignMock, showToastMock } =
-  vi.hoisted(() => ({
-    useCurrentCampaignMock: vi.fn(),
+const { useCurrentCampaignRoleMock, useToastMock, showToastMock } = vi.hoisted(
+  () => ({
+    useCurrentCampaignRoleMock: vi.fn(),
     useToastMock: vi.fn(),
-    getMyRoleInCampaignMock: vi.fn(),
     showToastMock: vi.fn(),
-  }));
+  }),
+);
 
-vi.mock('@/contexts/CampaignContext', () => ({
-  useCurrentCampaign: () => useCurrentCampaignMock(),
+vi.mock('@/hooks/useCurrentCampaignRole', () => ({
+  useCurrentCampaignRole: () => useCurrentCampaignRoleMock(),
 }));
 
 vi.mock('@/contexts/ToastContext', () => ({
   useToast: () => useToastMock(),
 }));
 
-vi.mock('@/lib/campaigns', () => ({
-  getMyRoleInCampaign: (id: string) => getMyRoleInCampaignMock(id),
-}));
-
 // ---- SUT ------------------------------------------------------------------
 
 import { ManageGuard } from '@/components/layout/ManageGuard';
-
-// ---- fixtures -------------------------------------------------------------
-
-const SAMPLE_CAMPAIGN = {
-  id: '11111111-1111-4111-8111-111111111111',
-  owner_id: '99999999-9999-4999-8999-999999999999',
-  name: 'Operation Black Wire',
-  codename: 'BLACK WIRE',
-  description: null,
-  max_agents: 6,
-  created_at: '2026-05-17T00:00:00Z',
-  updated_at: '2026-05-17T00:00:00Z',
-  deleted_at: null,
-};
 
 // ---- helpers --------------------------------------------------------------
 
@@ -77,64 +60,49 @@ function renderGuard(initialPath = '/manage-route') {
   );
 }
 
-function setupMocks(opts: {
-  campaign?: typeof SAMPLE_CAMPAIGN | null;
-  roleResult?:
-    | { ok: true; data: 'gm' | 'player' }
-    | { ok: false; kind: 'not_found' | 'unknown' | 'forbidden' };
-}) {
-  // `??` would coalesce `null` to `SAMPLE_CAMPAIGN` (only `undefined` should
-  // fall back) — use an explicit `in` check so the "campaign is null" tests
-  // can exercise that branch.
-  const campaign = 'campaign' in opts ? opts.campaign : SAMPLE_CAMPAIGN;
-  useCurrentCampaignMock.mockReturnValue({
-    campaign,
-    isLoading: false,
-    error: null,
-  });
+type RoleState = {
+  role: 'gm' | 'player' | null;
+  isGM: boolean;
+  isPlayer: boolean;
+  isLoading: boolean;
+  error: { kind: 'unknown'; cause: unknown } | null;
+};
+
+const IDLE_DEFAULTS: RoleState = {
+  role: null,
+  isGM: false,
+  isPlayer: false,
+  isLoading: false,
+  error: null,
+};
+
+function setupMocks(state: Partial<RoleState>) {
+  useCurrentCampaignRoleMock.mockReturnValue({ ...IDLE_DEFAULTS, ...state });
   showToastMock.mockClear();
   useToastMock.mockReturnValue({
     toasts: [],
     showToast: showToastMock,
     dismissToast: vi.fn(),
   });
-  getMyRoleInCampaignMock.mockReset();
-  if (opts.roleResult !== undefined) {
-    getMyRoleInCampaignMock.mockResolvedValueOnce(opts.roleResult);
-  }
 }
 
 // ---- tests ----------------------------------------------------------------
 
 describe('ManageGuard — loading', () => {
-  it('shows a verification indicator while the role query is in flight', async () => {
-    setupMocks({
-      // Use a deferred promise so we can assert the loading state before resolving.
-    });
-    let resolveRole!: (
-      value: { ok: true; data: 'gm' } | { ok: false; kind: 'not_found' },
-    ) => void;
-    getMyRoleInCampaignMock.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveRole = resolve;
-      }),
-    );
+  it('shows a verification indicator while the role query is in flight', () => {
+    setupMocks({ isLoading: true });
 
     renderGuard();
 
     expect(screen.getByText('VERIFYING CLEARANCE...')).toBeInTheDocument();
     expect(screen.queryByTestId('children')).not.toBeInTheDocument();
-
-    // Resolve so the effect's cleanup doesn't leak.
-    await act(async () => {
-      resolveRole({ ok: true, data: 'gm' });
-    });
+    expect(showToastMock).not.toHaveBeenCalled();
   });
 });
 
 describe('ManageGuard — allowed', () => {
   it('renders children when the caller is the Handler', async () => {
-    setupMocks({ roleResult: { ok: true, data: 'gm' } });
+    setupMocks({ role: 'gm', isGM: true });
 
     renderGuard();
 
@@ -147,7 +115,7 @@ describe('ManageGuard — allowed', () => {
 
 describe('ManageGuard — denied', () => {
   it('redirects to / and fires an error toast for an Agent', async () => {
-    setupMocks({ roleResult: { ok: true, data: 'player' } });
+    setupMocks({ role: 'player', isPlayer: true });
 
     renderGuard();
 
@@ -162,7 +130,7 @@ describe('ManageGuard — denied', () => {
   });
 
   it('redirects to / and fires an error toast when membership is missing', async () => {
-    setupMocks({ roleResult: { ok: false, kind: 'not_found' } });
+    setupMocks({ role: null });
 
     renderGuard();
 
@@ -175,15 +143,17 @@ describe('ManageGuard — denied', () => {
     );
   });
 
-  it('redirects without throwing when the campaign is unexpectedly null', async () => {
-    setupMocks({ campaign: null });
+  it('redirects and toasts when the role fetch fails unexpectedly', async () => {
+    setupMocks({ role: null, error: { kind: 'unknown', cause: new Error('boom') } });
 
     renderGuard();
 
     await waitFor(() => {
       expect(screen.getByTestId('landing')).toBeInTheDocument();
     });
-    // No role lookup should have been attempted.
-    expect(getMyRoleInCampaignMock).not.toHaveBeenCalled();
+    expect(showToastMock).toHaveBeenCalledWith(
+      'error',
+      expect.stringMatching(/handler/i),
+    );
   });
 });

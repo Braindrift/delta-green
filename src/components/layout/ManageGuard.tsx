@@ -5,7 +5,7 @@
  * Sits *inside* `CampaignGuard`, so by the time this component runs the
  * caller is already known to be an active member of the campaign and the
  * campaign row is loaded. The only remaining question is "are they the
- * Handler?" — answered by `getMyRoleInCampaign`.
+ * Handler?" — answered by `useCurrentCampaignRole`.
  *
  * Three outcomes:
  *
@@ -27,83 +27,50 @@
  * RLS-blocked widgets and read errors. The redirect + toast turns "every
  * action will fail" into "you can't be here".
  *
- * ## Effect ordering
+ * ## Why the hook, not a local fetch
  *
- * The toast is fired from the same effect that triggers the redirect, so
- * the React render that mounts the `<Navigate>` is preceded by a queued
- * `showToast`. `ToastProvider`'s dedupe window (200ms) absorbs the
- * strict-mode double-invoke.
+ * DEL-74 swept Handler-gated surfaces onto `useCurrentCampaignRole`, the
+ * single source of truth for "what's my role in this campaign?". The
+ * hook handles the campaign-loading / no-auth / fetch-failure machinery
+ * the local effect used to do here, and centralises the answer so any
+ * future co-Handler refactor has one decision point.
+ *
+ * ## Toast firing
+ *
+ * The denied toast is fired from an effect that watches for the denied
+ * transition, so the React render that mounts the `<Navigate>` is
+ * preceded by a queued `showToast`. `ToastProvider`'s dedupe window
+ * (200ms) absorbs the strict-mode double-invoke.
  */
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 
-import { useCurrentCampaign } from '@/contexts/CampaignContext';
 import { useToast } from '@/contexts/ToastContext';
-import { getMyRoleInCampaign, type CampaignRole } from '@/lib/campaigns';
-
-type RoleState =
-  | { kind: 'loading' }
-  | { kind: 'allowed' }
-  | { kind: 'denied' };
+import { useCurrentCampaignRole } from '@/hooks/useCurrentCampaignRole';
 
 export function ManageGuard({ children }: { children: ReactNode }) {
-  const { campaign } = useCurrentCampaign();
+  const { isGM, isLoading, error } = useCurrentCampaignRole();
   const { showToast } = useToast();
-  const [state, setState] = useState<RoleState>({ kind: 'loading' });
 
-  // `CampaignGuard` ensures `campaign` is non-null before this component
-  // mounts. The optional chain on `campaign?.id` is defensive — if a future
-  // refactor moves the mount point, the effect short-circuits instead of
-  // throwing on `campaign.id`.
-  const campaignId = campaign?.id;
+  // `error` collapses into the denied branch — the hook only surfaces
+  // unknown fetch failures here, and treating those as "not Handler" is
+  // the safe redirect-out behaviour. `isLoading` covers both the
+  // campaign-context and role-fetch loading states.
+  const denied = !isLoading && !isGM;
 
   useEffect(() => {
-    let cancelled = false;
-
-    // Pre-fetch setState transitions are deferred via Promise.resolve() to
-    // satisfy `react-hooks/set-state-in-effect`. The end-result ordering is
-    // unchanged because both the effect body and the microtask run before
-    // React commits the next paint — mirrors `CampaignContext.tsx`.
-    if (!campaignId) {
-      // Should be unreachable in production because CampaignGuard already
-      // gated this branch, but keep the state machine total.
-      void Promise.resolve().then(() => {
-        if (cancelled) return;
-        setState({ kind: 'denied' });
-      });
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    void Promise.resolve().then(() => {
-      if (cancelled) return;
-      setState({ kind: 'loading' });
-    });
-
-    void getMyRoleInCampaign(campaignId).then((result) => {
-      if (cancelled) return;
-
-      const role: CampaignRole | null = result.ok ? result.data : null;
-      if (role === 'gm') {
-        setState({ kind: 'allowed' });
-        return;
-      }
-
+    if (denied) {
       showToast(
         'error',
         'You need Handler permissions to manage this campaign.',
       );
-      setState({ kind: 'denied' });
-    });
+    }
+    // `error` is intentionally watched so a fetch failure that flips
+    // `denied` true still fires the toast.
+  }, [denied, error, showToast]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [campaignId, showToast]);
-
-  if (state.kind === 'loading') {
+  if (isLoading) {
     return (
       <div className="flex h-full w-full items-center justify-center">
         <span className="font-ui text-[11px] tracking-[0.15em] text-green-dim animate-pulse">
@@ -113,7 +80,7 @@ export function ManageGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  if (state.kind === 'denied') {
+  if (denied) {
     return <Navigate to="/" replace />;
   }
 

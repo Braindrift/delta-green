@@ -68,6 +68,11 @@ export function AssignToCampaignModal({
         setLoad({ kind: 'error' });
         return;
       }
+      // Intentionally keys off the membership row's role, not
+      // `useCurrentCampaignRole`: this iterates the caller's full
+      // memberships list across campaigns, not "what's my role in *this*
+      // campaign". The hook is route-keyed and would resolve to `null`
+      // for the workspace surface this modal lives on.
       const eligible = result.data.filter(
         (m) => m.role === 'player' && !attachedCampaignIds.has(m.campaign.id),
       );

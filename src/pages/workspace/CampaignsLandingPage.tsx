@@ -110,6 +110,12 @@ export function CampaignsLandingPage() {
     };
   }, []);
 
+  // Both filters key off the membership row's role rather than
+  // `useCurrentCampaignRole` (DEL-74). The landing page is a list view
+  // of the caller's memberships across campaigns — the hook is
+  // route-keyed and resolves to `null` here. The per-row role on the
+  // membership *is* the right source for the section split and the
+  // Delete-vs-Leave kebab gating below.
   const handlerMemberships =
     state.kind === 'ready' ? state.memberships.filter((m) => m.role === 'gm') : [];
   const agentMemberships =
