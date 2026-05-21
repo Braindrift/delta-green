@@ -20,6 +20,7 @@ import { supabase } from '@/lib/supabase';
 import { mapPostgrestError, ok, unknown, type Result } from '@/lib/records/errors';
 import type {
   CampaignMember,
+  CampaignMemberRole,
   CampaignMemberWithProfile,
   CampaignInvitation,
   PendingInvitationWithProfile,
@@ -68,6 +69,55 @@ export async function listCampaignMembers(
       username: profiles.data[m.user_id] ?? null,
     })),
   );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  My membership role                                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Resolve the authenticated user's role within the given campaign (DEL-60).
+ *
+ * Returns `ok('gm' | 'player')` for an active membership, `ok(null)` for
+ * "not an active member" (no session, no row, RLS-hidden — all collapse to
+ * the same "you don't have a role here" outcome for the caller).
+ *
+ * Why `null` and not a `not_found` Err: the hook `useCurrentCampaignRole`
+ * consumes this and exposes a `role: 'gm' | 'player' | null` field. Folding
+ * "not a member" into a successful `null` saves the hook a branch and
+ * matches the DoD ("returns null for non-members"). True errors
+ * (`forbidden` on write paths, unexpected PostgREST failures) still come
+ * back as `Err` variants for the hook to surface as `error.kind = 'unknown'`.
+ *
+ * Filters on `status = 'active'` so a `former` member after a kick/leave
+ * resolves to `null` rather than carrying their old `role`. `.maybeSingle()`
+ * is chosen over `.single()` because absence is the legitimate "not a
+ * member" case, not an exceptional `PGRST116`.
+ */
+export async function getMyMembershipRole(
+  campaignId: string,
+): Promise<Result<CampaignMemberRole | null>> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user.id;
+  if (!userId) return ok(null);
+
+  const { data, error } = await supabase
+    .from('campaign_members')
+    .select('role')
+    .eq('campaign_id', campaignId)
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .maybeSingle();
+
+  if (error) return mapPostgrestError(error);
+  if (!data) return ok(null);
+
+  // `role` is a literal-union text column — narrow defensively rather than
+  // casting blindly, so an unexpected DB value surfaces as `unknown`
+  // instead of leaking through as a bad role into the UI.
+  const role = (data as { role: unknown }).role;
+  if (role === 'gm' || role === 'player') return ok(role);
+  return unknown(new Error(`getMyMembershipRole: unexpected role value ${String(role)}`));
 }
 
 /* -------------------------------------------------------------------------- */
