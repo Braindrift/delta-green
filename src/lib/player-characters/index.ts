@@ -8,6 +8,7 @@
 
 export {
   getPlayerCharacterById,
+  listCampaignPcs,
   listJoinablePlayerCharacters,
   listMyPlayerCharacters,
 } from './queries';
