@@ -35,6 +35,7 @@ import { DeleteCampaignModal } from '@/components/manage/DeleteCampaignModal';
 import { LeaveCampaignModal } from '@/components/workspace/LeaveCampaignModal';
 import { LeaveLastHandlerModal } from '@/components/workspace/LeaveLastHandlerModal';
 import { AgentRosterPanel } from '@/components/agents/AgentRosterPanel';
+import { CampaignInfoPanel } from '@/components/workspace/CampaignInfoPanel';
 import { useToast } from '@/contexts/ToastContext';
 import type { CampaignMembership } from '@/types/campaigns';
 
@@ -49,10 +50,39 @@ type LeaveDialogState =
   | { kind: 'last_handler'; campaignName: string }
   | { kind: 'delete'; campaignId: string; campaignName: string };
 
+/**
+ * Left-column view-switch (DEL-69). Mirrors the `ViewMode` pattern in
+ * `AgentRosterPanel`: default is the campaign list; clicking Info on a
+ * card swaps the column to render `<CampaignInfoPanel>` for that
+ * campaign. The fields beyond `campaignId` are carried in state so the
+ * panel header paints from already-loaded data with no extra fetch.
+ */
+type PanelView =
+  | { kind: 'list' }
+  | {
+      kind: 'info';
+      campaignId: string;
+      campaignName: string;
+      memberCount: number;
+      maxAgents: number;
+    };
+
 export function CampaignsLandingPage() {
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [dialog, setDialog] = useState<LeaveDialogState>({ kind: 'closed' });
+  const [panelView, setPanelView] = useState<PanelView>({ kind: 'list' });
   const { showToast } = useToast();
+
+  const handleInfoRequest = useCallback(
+    (campaignId: string, campaignName: string, memberCount: number, maxAgents: number) => {
+      setPanelView({ kind: 'info', campaignId, campaignName, memberCount, maxAgents });
+    },
+    [],
+  );
+
+  const handleCloseInfo = useCallback(() => {
+    setPanelView({ kind: 'list' });
+  }, []);
 
   const reload = useCallback(async () => {
     const result = await listMyMemberships();
@@ -126,32 +156,46 @@ export function CampaignsLandingPage() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-0 items-stretch">
       <section className="lg:pr-8 lg:border-r lg:border-green-dim">
-        <PageHeader />
+        {panelView.kind === 'info' ? (
+          <CampaignInfoPanel
+            campaignId={panelView.campaignId}
+            campaignName={panelView.campaignName}
+            memberCount={panelView.memberCount}
+            maxAgents={panelView.maxAgents}
+            onClose={handleCloseInfo}
+          />
+        ) : (
+          <>
+            <PageHeader />
 
-        {state.kind === 'loading' ? <LoadingCard /> : null}
-        {state.kind === 'error' ? <ErrorCard /> : null}
-        {hasNoCampaigns ? <EmptyCampaignsCard /> : null}
+            {state.kind === 'loading' ? <LoadingCard /> : null}
+            {state.kind === 'error' ? <ErrorCard /> : null}
+            {hasNoCampaigns ? <EmptyCampaignsCard /> : null}
 
-        {state.kind === 'ready' && !hasNoCampaigns ? (
-          <div className="flex flex-col gap-8">
-            {handlerMemberships.length > 0 ? (
-              <MembershipsSection
-                title="As Handler"
-                count={handlerMemberships.length}
-                memberships={handlerMemberships}
-                onDeleteRequest={handleDeleteRequest}
-              />
+            {state.kind === 'ready' && !hasNoCampaigns ? (
+              <div className="flex flex-col gap-8">
+                {handlerMemberships.length > 0 ? (
+                  <MembershipsSection
+                    title="As Handler"
+                    count={handlerMemberships.length}
+                    memberships={handlerMemberships}
+                    onDeleteRequest={handleDeleteRequest}
+                    onInfo={handleInfoRequest}
+                  />
+                ) : null}
+                {agentMemberships.length > 0 ? (
+                  <MembershipsSection
+                    title="As Agent"
+                    count={agentMemberships.length}
+                    memberships={agentMemberships}
+                    onLeaveRequest={handleLeaveRequest}
+                    onInfo={handleInfoRequest}
+                  />
+                ) : null}
+              </div>
             ) : null}
-            {agentMemberships.length > 0 ? (
-              <MembershipsSection
-                title="As Agent"
-                count={agentMemberships.length}
-                memberships={agentMemberships}
-                onLeaveRequest={handleLeaveRequest}
-              />
-            ) : null}
-          </div>
-        ) : null}
+          </>
+        )}
       </section>
 
       <div className="lg:pl-8">
@@ -252,6 +296,16 @@ type MembershipsSectionProps = {
    * this is the landing-page shortcut (DEL-48).
    */
   onDeleteRequest?: (campaignId: string, campaignName: string) => void;
+  /**
+   * Opens the Campaign Info Panel for this card (DEL-69). Bound on both
+   * Handler and Agent sections so every card exposes Info.
+   */
+  onInfo: (
+    campaignId: string,
+    campaignName: string,
+    memberCount: number,
+    maxAgents: number,
+  ) => void;
 };
 
 function MembershipsSection({
@@ -260,6 +314,7 @@ function MembershipsSection({
   memberships,
   onLeaveRequest,
   onDeleteRequest,
+  onInfo,
 }: MembershipsSectionProps) {
   return (
     <section>
@@ -276,6 +331,7 @@ function MembershipsSection({
             membership={m}
             onLeaveRequest={onLeaveRequest}
             onDeleteRequest={onDeleteRequest}
+            onInfo={onInfo}
           />
         ))}
       </div>
@@ -291,10 +347,17 @@ function CampaignCard({
   membership,
   onLeaveRequest,
   onDeleteRequest,
+  onInfo,
 }: {
   membership: CampaignMembership;
   onLeaveRequest?: (campaignId: string, campaignName: string) => void;
   onDeleteRequest?: (campaignId: string, campaignName: string) => void;
+  onInfo: (
+    campaignId: string,
+    campaignName: string,
+    memberCount: number,
+    maxAgents: number,
+  ) => void;
 }) {
   const { campaign, member_count, role } = membership;
   const roleLabel = role === 'gm' ? 'Handler' : 'Agent';
@@ -354,18 +417,33 @@ function CampaignCard({
         {memberLabel}
       </div>
 
-      <Link
-        to={`/campaigns/${campaign.id}/operations`}
-        className={[
-          'font-ui text-[11px] tracking-[0.22em] uppercase px-3 py-[7px] text-center',
-          'text-green-accent border border-green-mid bg-green-accent/[0.06]',
-          'transition-all duration-150',
-          'hover:bg-green-accent/[0.12] hover:border-green-bright',
-          'hover:shadow-[0_0_12px_rgba(116,176,110,0.18)]',
-        ].join(' ')}
-      >
-        Open
-      </Link>
+      <div className="grid grid-cols-2 gap-2">
+        <Link
+          to={`/campaigns/${campaign.id}/operations`}
+          className={[
+            'font-ui text-[11px] tracking-[0.22em] uppercase px-3 py-[7px] text-center',
+            'text-green-accent border border-green-mid bg-green-accent/[0.06]',
+            'transition-all duration-150',
+            'hover:bg-green-accent/[0.12] hover:border-green-bright',
+            'hover:shadow-[0_0_12px_rgba(116,176,110,0.18)]',
+          ].join(' ')}
+        >
+          Open
+        </Link>
+        <button
+          type="button"
+          onClick={() => onInfo(campaign.id, campaign.name, member_count, campaign.max_agents)}
+          className={[
+            'font-ui text-[11px] tracking-[0.22em] uppercase px-3 py-[7px] text-center',
+            'text-green-accent border border-green-mid bg-green-accent/[0.06]',
+            'transition-all duration-150',
+            'hover:bg-green-accent/[0.12] hover:border-green-bright',
+            'hover:shadow-[0_0_12px_rgba(116,176,110,0.18)]',
+          ].join(' ')}
+        >
+          Info
+        </button>
+      </div>
     </div>
   );
 }
