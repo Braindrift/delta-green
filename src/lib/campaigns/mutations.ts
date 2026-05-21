@@ -11,9 +11,18 @@
  *     `campaign_owner_becomes_gm` then inserts the Handler `campaign_members`
  *     row in the same transaction, so the caller does not need a follow-up
  *     write.
- *   - Read-back uses `.select(...).single()` on the inserted row, which is
- *     visible to the caller through the `campaigns: members can read` policy
- *     because the trigger has already made them a member.
+ *   - Read-back uses `.select(...).single()` on the inserted row. PostgREST
+ *     evaluates the `campaigns: members can read` SELECT policy against the
+ *     returned row to validate the RETURNING projection. That policy has
+ *     two paths (`auth.uid() = owner_id or is_campaign_member(id)`) — the
+ *     owner branch is what carries this call, because the trigger's
+ *     `campaign_members` row is not visible to `is_campaign_member` within
+ *     the same INSERT statement (the AFTER ROW trigger fires inside the
+ *     outer statement's MVCC snapshot). DEL-72 added the owner branch
+ *     specifically to make this read-back work; without it the insert
+ *     aborts with `42501 — new row violates RLS policy for table
+ *     "campaigns"` even though the underlying insert and trigger both
+ *     succeeded.
  */
 
 import { supabase } from '@/lib/supabase';

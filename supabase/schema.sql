@@ -479,7 +479,10 @@ $$;
 -- --- campaigns -----------------------------------------------
 create policy "campaigns: members can read"
   on campaigns for select
-  using (is_campaign_member(id) and deleted_at is null);
+  using (
+    deleted_at is null
+    and (auth.uid() = owner_id or is_campaign_member(id))
+  );
 
 create policy "campaigns: authenticated can create"
   on campaigns for insert
