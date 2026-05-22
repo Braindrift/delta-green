@@ -125,6 +125,39 @@ export async function softDeleteCampaign(campaignId: string): Promise<Result<tru
   );
 }
 
+/**
+ * Patch a campaign's editable fields (DEL-71). The Handler-only inline form
+ * in `CampaignInfoPanel` writes through here.
+ *
+ * RLS context: the `campaigns: owner can update` policy gates this on
+ * `auth.uid() = owner_id`. The post-image read-back is allowed by the same
+ * `campaigns: members can read` policy that covers `createCampaign` — the
+ * owner branch added in DEL-72 makes `.select(...).single()` resolve for the
+ * Handler. Players hitting this path get `forbidden`.
+ *
+ * The shape mirrors `createCampaign`: server-set columns are excluded; the
+ * caller passes only the three Handler-editable fields. A partial patch is
+ * fine — Supabase only writes the keys present in the object.
+ */
+export type UpdateCampaignPatch = Partial<
+  Pick<Campaign, 'name' | 'description' | 'max_agents'>
+>;
+
+export async function updateCampaign(
+  campaignId: string,
+  patch: UpdateCampaignPatch,
+): Promise<Result<Campaign>> {
+  const { data, error } = await supabase
+    .from('campaigns')
+    .update(patch)
+    .eq('id', campaignId)
+    .select('*')
+    .single();
+
+  if (error) return mapPostgrestError(error);
+  return ok(data as Campaign);
+}
+
 export async function checkCampaignNameAvailable(name: string): Promise<Result<boolean>> {
   const { data: sessionData } = await supabase.auth.getSession();
   const userId = sessionData.session?.user.id;

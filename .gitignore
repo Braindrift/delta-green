@@ -36,3 +36,6 @@ tmp/
 # Sublime
 *.sublime-project
 *.sublime-workspace
+
+# Documentation
+documentation
