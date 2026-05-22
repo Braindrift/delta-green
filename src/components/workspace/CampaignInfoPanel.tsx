@@ -1,31 +1,26 @@
 /**
- * Campaign Info Panel — read-only campaign summary visible to any active
- * member (DEL-70).
+ * Campaign Info Panel — wireframe layout for GM + Player views (DEL-75).
  *
- * Rendered in the left column of the workspace landing page via the
- * panel-swap mechanism introduced in DEL-69 (`PanelView`). The caller
- * hands over campaign identity and the already-loaded
- * `memberCount` / `maxAgents` so the header can paint immediately while
- * the deeper roster fetch is still in flight.
+ * Supersedes the original read-only panel from DEL-70: same data sources,
+ * but the chrome and footer follow the GM/Player wireframes. Rendered in
+ * the left column of `CampaignsLandingPage` via the panel-swap from DEL-69.
  *
- * Fetches on mount, in parallel:
- *   - `getCampaignById`        — for the description text.
- *   - `listCampaignMembers`    — every visible row in the campaign. The
- *     member-side RLS policy was tightened to active rows only in
- *     `20260521085121_tighten_member_read_to_active.sql`, so non-Handlers
- *     get exactly the rows this view wants; Handlers continue to see
- *     former rows here too, but the panel filters to active before
- *     rendering anyway.
- *   - `listPendingInvitations` — pending invites for the campaign.
- *     `campaign_invitations` is Handler-readable only, so this returns an
- *     empty list for non-Handlers; the section just collapses. No
- *     role-gating is needed in the component for that reason.
- *   - `listCampaignPcs`        — `{ owner_id, name }` rows for every PC
- *     attached to the campaign, merged by `user_id === owner_id` to show
- *     the assigned Agent name next to each member.
+ * Role derivation: `useCurrentCampaignRole` keys off the campaign in the
+ * URL; the landing page has no `:campaignId` segment, so the hook would
+ * return idle here. `CampaignsLandingPage` already knows the caller's
+ * role from the membership row that opened the panel — we accept it as a
+ * prop instead of re-deriving.
  *
- * Handler-specific extensions (invite, kick, revoke, settings, transfer,
- * delete) are deferred to DEL-71; this component is purely read-only.
+ * Action buttons (MANAGE PLAYERS, EDIT, INVITE MORE PLAYERS, INFO,
+ * ASSIGN) are all stubs in this ticket. Each opens an empty overlay with
+ * a BACK button in the lower-left. Real bodies + wiring live in
+ * follow-up tickets (see DEL-75 Out of Scope).
+ *
+ * Row visibility rules:
+ *   - INFO appears on any accepted row whose member has a PC attached.
+ *   - ASSIGN appears only on the caller's own row, and only when the
+ *     caller has no PC attached in this campaign.
+ *   - Invited rows show an amber status dot and no action button.
  */
 
 import { Link } from 'react-router-dom';
@@ -34,6 +29,8 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { getCampaignById } from '@/lib/campaigns';
 import { listCampaignMembers, listPendingInvitations } from '@/lib/members';
 import { listCampaignPcs } from '@/lib/player-characters';
+import { useAuth } from '@/contexts/AuthContext';
+import { ModalShell } from '@/components/manage/ModalShell';
 import type { Campaign } from '@/types/campaigns';
 import type {
   CampaignMemberWithProfile,
@@ -45,6 +42,10 @@ export type CampaignInfoPanelProps = {
   campaignName: string;
   memberCount: number;
   maxAgents: number;
+  /** Caller's role in this campaign — sourced from the membership row in
+   *  `CampaignsLandingPage`, not from `useCurrentCampaignRole` (the hook
+   *  is route-bound and idle on this page). */
+  role: 'gm' | 'player';
   onClose: () => void;
 };
 
@@ -59,14 +60,28 @@ type LoadState =
       pcsByOwner: Record<string, string>;
     };
 
+type StubKind = 'manage-players' | 'edit' | 'invite' | 'info' | 'assign';
+
+const STUB_TITLES: Record<StubKind, string> = {
+  'manage-players': 'Manage Players',
+  edit: 'Edit Campaign',
+  invite: 'Invite Players',
+  info: 'Agent Info',
+  assign: 'Assign Character',
+};
+
 export function CampaignInfoPanel({
   campaignId,
   campaignName,
   memberCount,
   maxAgents,
+  role,
   onClose,
 }: CampaignInfoPanelProps) {
+  const { user } = useAuth();
+  const callerId = user?.id ?? null;
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
+  const [stub, setStub] = useState<StubKind | null>(null);
 
   const reload = useCallback(async () => {
     setState({ kind: 'loading' });
@@ -89,11 +104,6 @@ export function CampaignInfoPanel({
       return;
     }
 
-    // Build the owner → PC-name map. The Members screen specs one PC per
-    // active member, but the schema doesn't enforce that, so the map
-    // keeps the first PC alphabetically (the query is ordered by name)
-    // and silently drops duplicates — good enough for the badge text and
-    // matches the screen mock's single-PC display.
     const pcsByOwner: Record<string, string> = {};
     for (const pc of pcsResult.data) {
       if (!(pc.owner_id in pcsByOwner)) {
@@ -111,17 +121,9 @@ export function CampaignInfoPanel({
   }, [campaignId]);
 
   useEffect(() => {
-    // Defer the first state update by a microtask so the synchronous
-    // setState({ kind: 'loading' }) doesn't fire on the same tick as the
-    // effect body. Same pattern as `ManageMembersPage`.
     void Promise.resolve().then(() => reload());
   }, [reload]);
 
-  // Split active members into the GM row and the player list. The GM
-  // renders separately above the player list per the ticket; the
-  // player list omits the GM. Former members are excluded from both
-  // (RLS already hides them for non-Handlers; the explicit filter
-  // covers the Handler case where they'd otherwise be visible here).
   const { gm, activePlayers } = useMemo(() => {
     if (state.kind !== 'ready') {
       return { gm: null, activePlayers: [] as CampaignMemberWithProfile[] };
@@ -133,30 +135,17 @@ export function CampaignInfoPanel({
     };
   }, [state]);
 
+  const isGm = role === 'gm';
+
   return (
     <section>
-      <header className="mb-7 flex items-end justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="font-display text-[26px] font-light tracking-[0.18em] uppercase text-paper truncate">
-            {campaignName}
-          </h1>
-          <p className="font-ui text-[11px] tracking-[0.14em] text-green-mid mt-1 uppercase">
-            {memberCount} / {maxAgents} players
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={onClose}
-          className={[
-            'font-ui text-[11px] tracking-[0.22em] uppercase px-3 py-[7px]',
-            'text-paper-worn border border-green-dim/60 bg-transparent',
-            'transition-all duration-150',
-            'hover:text-paper hover:border-green-mid',
-          ].join(' ')}
-        >
-          Close
-        </button>
+      <header className="mb-7">
+        <h1 className="font-display text-[26px] font-light tracking-[0.18em] uppercase text-paper truncate">
+          {campaignName}
+        </h1>
+        <p className="font-ui text-[11px] tracking-[0.14em] text-green-mid mt-1 uppercase">
+          Player slots {memberCount} / {maxAgents}
+        </p>
       </header>
 
       {state.kind === 'loading' ? <LoadingCard /> : null}
@@ -172,28 +161,64 @@ export function CampaignInfoPanel({
 
           <GameMasterSection gm={gm} pcsByOwner={state.pcsByOwner} />
 
+          {isGm ? (
+            <div>
+              <button
+                type="button"
+                onClick={() => setStub('manage-players')}
+                className={secondaryButtonClass}
+              >
+                Manage Players
+              </button>
+            </div>
+          ) : null}
+
           <PlayersSection
             players={activePlayers}
             pendingInvitations={state.pendingInvitations}
             pcsByOwner={state.pcsByOwner}
+            callerId={callerId}
+            onInfo={() => setStub('info')}
+            onAssign={() => setStub('assign')}
           />
 
-          <div className="flex justify-end">
-            <Link
-              to={`/campaigns/${campaignId}/operations`}
-              className={[
-                'font-ui text-[11px] tracking-[0.22em] uppercase px-4 py-[9px]',
-                'text-green-accent border border-green-mid bg-green-accent/[0.06]',
-                'transition-all duration-150',
-                'hover:bg-green-accent/[0.12] hover:border-green-bright',
-                'hover:shadow-[0_0_12px_rgba(116,176,110,0.18)]',
-              ].join(' ')}
+          {isGm ? (
+            <button
+              type="button"
+              onClick={() => setStub('invite')}
+              className={dashedCtaClass}
             >
-              Open campaign
-            </Link>
-          </div>
+              + Invite More Players
+            </button>
+          ) : null}
+
+          <footer className="flex items-center justify-between gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className={secondaryButtonClass}
+            >
+              Back
+            </button>
+            <div className="flex items-center gap-3">
+              {isGm ? (
+                <button
+                  type="button"
+                  onClick={() => setStub('edit')}
+                  className={secondaryButtonClass}
+                >
+                  Edit
+                </button>
+              ) : null}
+              <Link to={`/campaigns/${campaignId}/operations`} className={primaryButtonClass}>
+                Open
+              </Link>
+            </div>
+          </footer>
         </div>
       ) : null}
+
+      {stub ? <StubOverlay kind={stub} onBack={() => setStub(null)} /> : null}
     </section>
   );
 }
@@ -213,6 +238,7 @@ function GameMasterSection({
     <SectionShell title="Game Master">
       {gm ? (
         <div className="flex items-center gap-3 px-4 py-3">
+          <StatusDot variant="accepted" />
           <span
             aria-hidden="true"
             className="font-ui text-[14px] text-amber-dim"
@@ -239,17 +265,23 @@ function GameMasterSection({
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Players section (active + pending invites)                                */
+/*  Players section                                                           */
 /* -------------------------------------------------------------------------- */
 
 function PlayersSection({
   players,
   pendingInvitations,
   pcsByOwner,
+  callerId,
+  onInfo,
+  onAssign,
 }: {
   players: CampaignMemberWithProfile[];
   pendingInvitations: PendingInvitationWithProfile[];
   pcsByOwner: Record<string, string>;
+  callerId: string | null;
+  onInfo: () => void;
+  onAssign: () => void;
 }) {
   const total = players.length + pendingInvitations.length;
 
@@ -259,20 +291,32 @@ function PlayersSection({
         <SectionEmpty text="No agents yet." />
       ) : (
         <ul>
-          {players.map((m) => (
-            <PlayerRow
-              key={m.id}
-              username={m.username}
-              pcName={pcsByOwner[m.user_id] ?? null}
-              badge="accepted"
-            />
-          ))}
+          {players.map((m) => {
+            const pcName = pcsByOwner[m.user_id] ?? null;
+            const isOwnRow = callerId !== null && m.user_id === callerId;
+            return (
+              <PlayerRow
+                key={m.id}
+                username={m.username}
+                pcName={pcName}
+                badge="accepted"
+                action={
+                  pcName
+                    ? { kind: 'info', onClick: onInfo }
+                    : isOwnRow
+                      ? { kind: 'assign', onClick: onAssign }
+                      : { kind: 'none' }
+                }
+              />
+            );
+          })}
           {pendingInvitations.map((i) => (
             <PlayerRow
               key={i.id}
               username={i.username ?? i.invitee_email}
               pcName={null}
               badge="invited"
+              action={{ kind: 'none' }}
             />
           ))}
         </ul>
@@ -281,50 +325,62 @@ function PlayersSection({
   );
 }
 
+type RowAction =
+  | { kind: 'none' }
+  | { kind: 'info'; onClick: () => void }
+  | { kind: 'assign'; onClick: () => void };
+
 function PlayerRow({
   username,
   pcName,
   badge,
+  action,
 }: {
   username: string | null;
   pcName: string | null;
   badge: 'accepted' | 'invited';
+  action: RowAction;
 }) {
   const handle = username ?? 'unknown agent';
 
   return (
     <li className="flex items-center gap-3 px-4 py-3 border-b border-green-dim/40 last:border-b-0">
+      <StatusDot variant={badge} />
       <div className="flex-1 min-w-0">
         <div className="font-ui text-[12px] tracking-[0.06em] text-paper truncate">
           {handle}
         </div>
-        {pcName ? (
-          <div className="font-ui text-[10px] tracking-[0.14em] uppercase text-green-mid mt-[2px]">
-            {pcName}
-          </div>
-        ) : null}
+        <div className="font-ui text-[10px] tracking-[0.14em] uppercase text-green-mid mt-[2px]">
+          {pcName ?? 'Unassigned'}
+        </div>
       </div>
-      <StatusBadge variant={badge} />
+      {action.kind === 'info' ? (
+        <button type="button" onClick={action.onClick} className={rowButtonClass}>
+          Info
+        </button>
+      ) : null}
+      {action.kind === 'assign' ? (
+        <button type="button" onClick={action.onClick} className={rowButtonClass}>
+          Assign
+        </button>
+      ) : null}
     </li>
   );
 }
 
-function StatusBadge({ variant }: { variant: 'accepted' | 'invited' }) {
+function StatusDot({ variant }: { variant: 'accepted' | 'invited' }) {
+  const tone =
+    variant === 'accepted' ? 'bg-green-accent' : 'bg-amber-dim';
   const label = variant === 'accepted' ? 'Accepted' : 'Invited';
-  const classes =
-    variant === 'accepted'
-      ? 'text-green-mid border-green-dim/60'
-      : 'text-amber-dim border-amber-dim/60';
-
   return (
     <span
+      aria-label={label}
+      title={label}
       className={[
-        'font-ui text-[9px] tracking-[0.16em] uppercase border px-[6px] py-[2px]',
-        classes,
+        'inline-block w-[8px] h-[8px] rounded-full flex-shrink-0',
+        tone,
       ].join(' ')}
-    >
-      {label}
-    </span>
+    />
   );
 }
 
@@ -398,3 +454,56 @@ function ErrorCard({ onRetry }: { onRetry: () => void }) {
     </div>
   );
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Stub overlay                                                              */
+/* -------------------------------------------------------------------------- */
+
+function StubOverlay({ kind, onBack }: { kind: StubKind; onBack: () => void }) {
+  return (
+    <ModalShell title={STUB_TITLES[kind]} onClose={onBack} width={460}>
+      <p className="font-ui text-[11px] tracking-[0.12em] uppercase text-green-mid mb-6">
+        Coming soon.
+      </p>
+      <div className="flex justify-start">
+        <button type="button" onClick={onBack} className={secondaryButtonClass}>
+          Back
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Shared button classes                                                     */
+/* -------------------------------------------------------------------------- */
+
+const primaryButtonClass = [
+  'font-ui text-[11px] tracking-[0.22em] uppercase px-4 py-[9px]',
+  'text-green-accent border border-green-mid bg-green-accent/[0.06]',
+  'transition-all duration-150',
+  'hover:bg-green-accent/[0.12] hover:border-green-bright',
+  'hover:shadow-[0_0_12px_rgba(116,176,110,0.18)]',
+].join(' ');
+
+const secondaryButtonClass = [
+  'font-ui text-[11px] tracking-[0.22em] uppercase px-4 py-[9px]',
+  'text-paper-worn border border-green-dim/60 bg-transparent',
+  'transition-all duration-150',
+  'hover:text-paper hover:border-green-mid',
+].join(' ');
+
+const rowButtonClass = [
+  'font-ui text-[10px] tracking-[0.22em] uppercase px-3 py-[6px] flex-shrink-0',
+  'text-green-accent border border-green-mid bg-green-accent/[0.06]',
+  'transition-all duration-150',
+  'hover:bg-green-accent/[0.12] hover:border-green-bright',
+  'hover:shadow-[0_0_12px_rgba(116,176,110,0.18)]',
+].join(' ');
+
+const dashedCtaClass = [
+  'font-ui text-[11px] tracking-[0.22em] uppercase px-4 py-[12px]',
+  'text-green-mid border border-dashed border-green-dim bg-transparent',
+  'transition-all duration-150',
+  'hover:text-paper hover:border-green-mid hover:bg-green-accent/[0.04]',
+].join(' ');
