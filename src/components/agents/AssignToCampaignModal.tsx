@@ -68,6 +68,10 @@ export function AssignToCampaignModal({
         setLoad({ kind: 'error' });
         return;
       }
+      // DEL-74: intentionally not using `useCurrentCampaignRole` here —
+      // the modal filters the user's memberships across all campaigns to
+      // find ones the agent can be assigned into. The hook is scoped to
+      // the campaign in the current route, which this modal doesn't have.
       const eligible = result.data.filter(
         (m) => m.role === 'player' && !attachedCampaignIds.has(m.campaign.id),
       );

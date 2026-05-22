@@ -5,19 +5,22 @@
  * Sits *inside* `CampaignGuard`, so by the time this component runs the
  * caller is already known to be an active member of the campaign and the
  * campaign row is loaded. The only remaining question is "are they the
- * Handler?" — answered by `getMyRoleInCampaign`.
+ * Handler?" — answered by `useCurrentCampaignRole` (DEL-60), the single
+ * source of truth for route-scoped role decisions.
  *
  * Three outcomes:
  *
  *   1. Handler — renders `children`.
- *   2. Active Agent (or any other non-Handler resolution) — redirects to
- *      `/` and fires an error toast. The redirect intentionally lands on
- *      the workspace landing page, not back into the campaign, so a player
- *      who clicked a stale link sees the campaign list rather than an
- *      empty management screen.
- *   3. Loading — shows the same `LOADING...` stamp as `CampaignGuard`
- *      for visual continuity. The two guards share a `<div>`-level
- *      structure on purpose.
+ *   2. Active Agent / no membership / fetch error — redirects to `/` and
+ *      fires an error toast. The redirect intentionally lands on the
+ *      workspace landing page, not back into the campaign, so a player who
+ *      clicked a stale link sees the campaign list rather than an empty
+ *      management screen. Fetch errors collapse into the same branch
+ *      because "every action will fail" is indistinguishable from "you
+ *      shouldn't be here" from the user's perspective.
+ *   3. Loading — shows the same `LOADING...` stamp as `CampaignGuard` for
+ *      visual continuity. The two guards share a `<div>`-level structure
+ *      on purpose.
  *
  * ## Why a UI guard at all when RLS already covers writes
  *
@@ -27,83 +30,44 @@
  * RLS-blocked widgets and read errors. The redirect + toast turns "every
  * action will fail" into "you can't be here".
  *
- * ## Effect ordering
+ * ## Toast dedupe
  *
- * The toast is fired from the same effect that triggers the redirect, so
- * the React render that mounts the `<Navigate>` is preceded by a queued
- * `showToast`. `ToastProvider`'s dedupe window (200ms) absorbs the
- * strict-mode double-invoke.
+ * The toast fires from an effect keyed on the denied state, so the React
+ * render that mounts the `<Navigate>` is preceded by a queued `showToast`.
+ * `ToastProvider`'s dedupe window (200ms) absorbs the strict-mode
+ * double-invoke.
  */
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 
-import { useCurrentCampaign } from '@/contexts/CampaignContext';
 import { useToast } from '@/contexts/ToastContext';
-import { getMyRoleInCampaign, type CampaignRole } from '@/lib/campaigns';
-
-type RoleState =
-  | { kind: 'loading' }
-  | { kind: 'allowed' }
-  | { kind: 'denied' };
+import { useCurrentCampaignRole } from '@/hooks/useCurrentCampaignRole';
 
 export function ManageGuard({ children }: { children: ReactNode }) {
-  const { campaign } = useCurrentCampaign();
+  const { isGM, isLoading } = useCurrentCampaignRole();
   const { showToast } = useToast();
-  const [state, setState] = useState<RoleState>({ kind: 'loading' });
 
-  // `CampaignGuard` ensures `campaign` is non-null before this component
-  // mounts. The optional chain on `campaign?.id` is defensive — if a future
-  // refactor moves the mount point, the effect short-circuits instead of
-  // throwing on `campaign.id`.
-  const campaignId = campaign?.id;
+  // The denial branch covers three distinct hook states — active player,
+  // no membership (`role === null` with no error), and unknown fetch
+  // failure. All three should bounce the caller out of the management
+  // subtree with the same message; the hook's own error surface stays
+  // separate so consumers that care can branch on it.
+  const denied = !isLoading && !isGM;
 
   useEffect(() => {
-    let cancelled = false;
+    if (!denied) return;
+    showToast(
+      'error',
+      'You need Handler permissions to manage this campaign.',
+    );
+    // `role` and `error` are intentionally not in the dep array — the
+    // toast is keyed on the denied transition, not on the specific reason.
+    // Re-firing when the reason refines (e.g. role load → role=null) would
+    // double-toast on a single denial.
+  }, [denied, showToast]);
 
-    // Pre-fetch setState transitions are deferred via Promise.resolve() to
-    // satisfy `react-hooks/set-state-in-effect`. The end-result ordering is
-    // unchanged because both the effect body and the microtask run before
-    // React commits the next paint — mirrors `CampaignContext.tsx`.
-    if (!campaignId) {
-      // Should be unreachable in production because CampaignGuard already
-      // gated this branch, but keep the state machine total.
-      void Promise.resolve().then(() => {
-        if (cancelled) return;
-        setState({ kind: 'denied' });
-      });
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    void Promise.resolve().then(() => {
-      if (cancelled) return;
-      setState({ kind: 'loading' });
-    });
-
-    void getMyRoleInCampaign(campaignId).then((result) => {
-      if (cancelled) return;
-
-      const role: CampaignRole | null = result.ok ? result.data : null;
-      if (role === 'gm') {
-        setState({ kind: 'allowed' });
-        return;
-      }
-
-      showToast(
-        'error',
-        'You need Handler permissions to manage this campaign.',
-      );
-      setState({ kind: 'denied' });
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [campaignId, showToast]);
-
-  if (state.kind === 'loading') {
+  if (isLoading) {
     return (
       <div className="flex h-full w-full items-center justify-center">
         <span className="font-ui text-[11px] tracking-[0.15em] text-green-dim animate-pulse">
@@ -113,7 +77,7 @@ export function ManageGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  if (state.kind === 'denied') {
+  if (denied) {
     return <Navigate to="/" replace />;
   }
 
