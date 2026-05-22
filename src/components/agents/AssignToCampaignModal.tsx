@@ -21,7 +21,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { ModalShell } from '@/components/manage/ModalShell';
+import { ModalShell } from '@/components/common/ModalShell';
 import { listMyMemberships } from '@/lib/campaigns';
 import { assignPlayerCharacterToCampaign } from '@/lib/player-characters';
 import type { CampaignMembership } from '@/types/campaigns';

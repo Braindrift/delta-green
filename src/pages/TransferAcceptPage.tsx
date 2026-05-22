@@ -17,11 +17,11 @@
  *     (`getTransferForRecipient`). If the row is non-pending or its
  *     campaign is gone, render the matching terminal card.
  *   - Accept → `acceptTransfer` (RPC). On `accepted`, toast and navigate
- *     to `/campaigns/:id/manage/settings` — the recipient is now the
- *     Handler, so the manage subtree is the most useful landing. On
- *     `gone` / `deleted`, swap to the matching terminal card without a
- *     refetch. On `not_recipient`, refetch (defensive — shouldn't be
- *     reachable through normal navigation).
+ *     to `/` — the recipient is now the Handler and the campaign appears
+ *     in their Handler group on the workspace landing page. On `gone` /
+ *     `deleted`, swap to the matching terminal card without a refetch. On
+ *     `not_recipient`, refetch (defensive — shouldn't be reachable through
+ *     normal navigation).
  *   - Decline → `declineTransfer` (plain UPDATE under recipient RLS).
  *     The DEL-49 status-change trigger notifies the sender. Route back
  *     to `location.state.from ?? '/'`.
@@ -145,9 +145,7 @@ export function TransferAcceptPage() {
 
     if (result.data === 'accepted') {
       showToast('success', 'You are the new Handler.');
-      navigate(`/campaigns/${state.transfer.campaign_id}/manage/settings`, {
-        replace: true,
-      });
+      navigate('/', { replace: true });
       return;
     }
 

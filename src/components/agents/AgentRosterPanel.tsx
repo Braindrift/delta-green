@@ -42,7 +42,7 @@ import type {
 import { AgentForm } from '@/components/agents/AgentForm';
 import { AgentInfoView } from '@/components/agents/AgentInfoView';
 import { AssignToCampaignModal } from '@/components/agents/AssignToCampaignModal';
-import { ModalShell } from '@/components/manage/ModalShell';
+import { ModalShell } from '@/components/common/ModalShell';
 import { RowMenu } from '@/components/common/RowMenu';
 
 type LoadState =

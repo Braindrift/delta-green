@@ -31,7 +31,7 @@ import type {
   PlayerCharacter,
   PlayerCharacterStatus,
 } from '@/types/player-characters';
-import { ModalShell } from '@/components/manage/ModalShell';
+import { ModalShell } from '@/components/common/ModalShell';
 
 export type AgentInfoViewProps = {
   pc: PlayerCharacter;
