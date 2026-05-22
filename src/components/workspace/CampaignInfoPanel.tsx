@@ -161,18 +161,6 @@ export function CampaignInfoPanel({
 
           <GameMasterSection gm={gm} pcsByOwner={state.pcsByOwner} />
 
-          {isGm ? (
-            <div>
-              <button
-                type="button"
-                onClick={() => setStub('manage-players')}
-                className={secondaryButtonClass}
-              >
-                Manage Players
-              </button>
-            </div>
-          ) : null}
-
           <PlayersSection
             players={activePlayers}
             pendingInvitations={state.pendingInvitations}
@@ -180,6 +168,17 @@ export function CampaignInfoPanel({
             callerId={callerId}
             onInfo={() => setStub('info')}
             onAssign={() => setStub('assign')}
+            headerAction={
+              isGm ? (
+                <button
+                  type="button"
+                  onClick={() => setStub('manage-players')}
+                  className={secondaryButtonClass}
+                >
+                  Manage Players
+                </button>
+              ) : null
+            }
           />
 
           {isGm ? (
@@ -275,6 +274,7 @@ function PlayersSection({
   callerId,
   onInfo,
   onAssign,
+  headerAction,
 }: {
   players: CampaignMemberWithProfile[];
   pendingInvitations: PendingInvitationWithProfile[];
@@ -282,11 +282,12 @@ function PlayersSection({
   callerId: string | null;
   onInfo: () => void;
   onAssign: () => void;
+  headerAction?: ReactNode;
 }) {
   const total = players.length + pendingInvitations.length;
 
   return (
-    <SectionShell title="Players" count={total}>
+    <SectionShell title="Players" count={total} headerAction={headerAction}>
       {total === 0 ? (
         <SectionEmpty text="No agents yet." />
       ) : (
@@ -391,20 +392,25 @@ function StatusDot({ variant }: { variant: 'accepted' | 'invited' }) {
 function SectionShell({
   title,
   count,
+  headerAction,
   children,
 }: {
   title: string;
   count?: number;
+  headerAction?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section>
-      <h2 className="font-display text-[13px] font-light tracking-[0.22em] uppercase text-paper-worn mb-3">
-        {title}
-        {typeof count === 'number' ? (
-          <span className="text-green-mid"> · {count}</span>
-        ) : null}
-      </h2>
+      <div className="flex items-end justify-between gap-3 mb-3">
+        <h2 className="font-display text-[13px] font-light tracking-[0.22em] uppercase text-paper-worn">
+          {title}
+          {typeof count === 'number' ? (
+            <span className="text-green-mid"> · {count}</span>
+          ) : null}
+        </h2>
+        {headerAction}
+      </div>
       <div className="border border-green-dim bg-desk-edge">{children}</div>
     </section>
   );
