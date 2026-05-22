@@ -335,10 +335,7 @@ function MembershipsSection({
       <h2 className="font-display text-[13px] font-light tracking-[0.22em] uppercase text-paper-worn mb-3">
         {title} <span className="text-green-mid">· {count}</span>
       </h2>
-      <div
-        className="grid gap-3"
-        style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}
-      >
+      <div className="grid grid-cols-1 gap-3">
         {memberships.map((m) => (
           <CampaignCard
             key={m.campaign.id}
