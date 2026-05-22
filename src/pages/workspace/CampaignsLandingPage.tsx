@@ -117,6 +117,11 @@ export function CampaignsLandingPage() {
     };
   }, []);
 
+  // DEL-74: intentionally not using `useCurrentCampaignRole` here — this
+  // page iterates the user's memberships across every campaign to render
+  // the "As Handler" / "As Agent" sections. The hook resolves a role within
+  // a single `:campaignId` route segment, which the landing page doesn't
+  // have, so it would return its idle state and answer the wrong question.
   const handlerMemberships =
     state.kind === 'ready' ? state.memberships.filter((m) => m.role === 'gm') : [];
   const agentMemberships =
