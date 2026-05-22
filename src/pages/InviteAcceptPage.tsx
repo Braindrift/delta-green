@@ -44,7 +44,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { AgentForm } from '@/components/agents/AgentForm';
 import { InviteGoneScreen, type InviteGoneVariant } from '@/components/invite/InviteGoneScreen';
-import { ModalShell } from '@/components/manage/ModalShell';
+import { ModalShell } from '@/components/common/ModalShell';
 import { useToast } from '@/contexts/ToastContext';
 import {
   acceptInvitationWithPc,

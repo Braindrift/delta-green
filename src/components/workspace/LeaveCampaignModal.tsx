@@ -24,7 +24,7 @@
 
 import { useState } from 'react';
 
-import { ModalShell } from '@/components/manage/ModalShell';
+import { ModalShell } from '@/components/common/ModalShell';
 import { leaveCampaign } from '@/lib/members';
 
 const CONFIRM_PHRASE = 'LEAVE';

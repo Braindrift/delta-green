@@ -1,12 +1,8 @@
 /**
  * Confirmation modal for the Handler-initiated campaign-delete flow (DEL-48).
  *
- * Two surfaces open this dialog:
- *
- *   - The Danger zone on the campaign Settings page
- *     (`/campaigns/:id/manage/settings`). Primary location.
- *   - The kebab on a Handler campaign card on the workspace landing page.
- *     Shortcut — same modal, same semantics.
+ * Opened from the kebab on a Handler campaign card on the workspace landing
+ * page.
  *
  * On confirm, `softDeleteCampaign` flips `campaigns.deleted_at` to `now()`.
  * The DEL-35 `campaigns_notify_soft_delete` trigger fires inside the same
@@ -25,7 +21,7 @@
 
 import { useState } from 'react';
 
-import { ModalShell } from '@/components/manage/ModalShell';
+import { ModalShell } from '@/components/common/ModalShell';
 import { softDeleteCampaign } from '@/lib/campaigns';
 
 const CONFIRM_PHRASE = 'DELETE';

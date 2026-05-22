@@ -2,12 +2,11 @@
  * Workspace — Create campaign.
  *
  * Single-page form + success modal. Mounted at `/campaigns/new` under the
- * Workspace shell. Per the DEL-42 spec, the success state is an overlay over
- * the same URL rather than a separate route — once the campaign exists the
- * URL is technically stale (`/campaigns/new` shows a finished campaign), but
- * the trade-off is intentional: it keeps the modal CTAs free to route to
- * either `/campaigns/:id/manage/members` or `/campaigns/:id/operations`
- * without first having to navigate to a campaign-shell location.
+ * Workspace shell. The success state is an overlay over the same URL rather
+ * than a separate route — once the campaign exists the URL is technically
+ * stale (`/campaigns/new` shows a finished campaign), but the trade-off is
+ * intentional: it keeps the modal action free to route the Handler back to
+ * the workspace landing page.
  *
  * Data flow:
  *   1. User fills the form. `max_agents` is range-validated onBlur and on
@@ -148,8 +147,7 @@ export function CreateCampaignPage() {
     return (
       <SuccessOverlay
         campaign={view.campaign}
-        onInvite={() => navigate(`/campaigns/${view.campaign.id}/manage/members`)}
-        onSkip={() => navigate(`/campaigns/${view.campaign.id}/operations`)}
+        onOpenWorkspace={() => navigate('/')}
       />
     );
   }
@@ -392,11 +390,10 @@ function FormTextArea({ label, value, onChange, hint }: FormTextAreaProps) {
 
 type SuccessOverlayProps = {
   campaign: Campaign;
-  onInvite: () => void;
-  onSkip: () => void;
+  onOpenWorkspace: () => void;
 };
 
-function SuccessOverlay({ campaign, onInvite, onSkip }: SuccessOverlayProps) {
+function SuccessOverlay({ campaign, onOpenWorkspace }: SuccessOverlayProps) {
   return (
     <div
       role="dialog"
@@ -415,14 +412,13 @@ function SuccessOverlay({ campaign, onInvite, onSkip }: SuccessOverlayProps) {
           {campaign.name}
         </h2>
         <p className="font-ui text-[11px] tracking-[0.08em] text-paper-worn leading-relaxed mb-6">
-          Campaign created and you have been filed as Handler. Invite your agents
-          now, or set up the operation first.
+          Campaign created and you have been filed as Handler.
         </p>
 
         <div className="flex flex-col gap-3 sm:flex-row">
           <button
             type="button"
-            onClick={onInvite}
+            onClick={onOpenWorkspace}
             className={[
               'flex-1 font-ui text-[11px] tracking-[0.22em] uppercase px-4 py-[11px]',
               'text-green-accent border border-green-mid bg-green-accent/[0.06]',
@@ -432,19 +428,7 @@ function SuccessOverlay({ campaign, onInvite, onSkip }: SuccessOverlayProps) {
               'focus:outline-none focus:border-green-accent focus:bg-green-accent/[0.14]',
             ].join(' ')}
           >
-            Invite agents
-          </button>
-          <button
-            type="button"
-            onClick={onSkip}
-            className={[
-              'flex-1 font-ui text-[11px] tracking-[0.18em] uppercase px-4 py-[11px]',
-              'text-green-mid border border-green-dim/60 bg-transparent',
-              'transition-colors duration-150',
-              'hover:text-paper hover:border-green-mid',
-            ].join(' ')}
-          >
-            Skip for now
+            Open workspace
           </button>
         </div>
       </div>

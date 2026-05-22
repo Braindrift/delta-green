@@ -30,7 +30,7 @@ import { getCampaignById } from '@/lib/campaigns';
 import { listCampaignMembers, listPendingInvitations } from '@/lib/members';
 import { listCampaignPcs } from '@/lib/player-characters';
 import { useAuth } from '@/contexts/AuthContext';
-import { ModalShell } from '@/components/manage/ModalShell';
+import { ModalShell } from '@/components/common/ModalShell';
 import type { Campaign } from '@/types/campaigns';
 import type {
   CampaignMemberWithProfile,

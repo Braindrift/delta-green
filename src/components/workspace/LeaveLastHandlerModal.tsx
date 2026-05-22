@@ -19,7 +19,7 @@
  * become real links and this comment block can be trimmed.
  */
 
-import { ModalShell } from '@/components/manage/ModalShell';
+import { ModalShell } from '@/components/common/ModalShell';
 
 export type LeaveLastHandlerModalProps = {
   campaignName: string;
