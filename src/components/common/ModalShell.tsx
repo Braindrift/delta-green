@@ -31,6 +31,13 @@ export type ModalShellProps = {
    */
   preventClose?: boolean;
   /**
+   * When false, the shell offers no chrome-level dismissal: the × button is
+   * hidden, Escape is ignored, and backdrop clicks do nothing. Used by
+   * modals that want a single explicit close path inside the body (e.g.
+   * the Invite Players modal's BACK button). Defaults to true.
+   */
+  closeOnChrome?: boolean;
+  /**
    * Width in pixels. Defaults to 520. The Invite modal needs a bit more
    * room than the Kick confirm.
    */
@@ -43,6 +50,7 @@ export function ModalShell({
   subtitle,
   onClose,
   preventClose = false,
+  closeOnChrome = true,
   width = 520,
   children,
 }: ModalShellProps) {
@@ -56,20 +64,20 @@ export function ModalShell({
   }, []);
 
   useEffect(() => {
-    if (preventClose) return;
+    if (preventClose || !closeOnChrome) return;
 
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose, preventClose]);
+  }, [onClose, preventClose, closeOnChrome]);
 
   return (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center bg-desk/80 backdrop-blur-[2px]"
       onPointerDown={(e) => {
-        if (preventClose) return;
+        if (preventClose || !closeOnChrome) return;
         if (e.target === e.currentTarget) onClose();
       }}
     >
@@ -96,18 +104,20 @@ export function ModalShell({
               </p>
             ) : null}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={preventClose}
-            aria-label="Close"
-            className={[
-              'font-ui text-[18px] leading-none text-paper-dark transition-colors',
-              'hover:text-paper disabled:opacity-50 disabled:cursor-not-allowed',
-            ].join(' ')}
-          >
-            ×
-          </button>
+          {closeOnChrome ? (
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={preventClose}
+              aria-label="Close"
+              className={[
+                'font-ui text-[18px] leading-none text-paper-dark transition-colors',
+                'hover:text-paper disabled:opacity-50 disabled:cursor-not-allowed',
+              ].join(' ')}
+            >
+              ×
+            </button>
+          ) : null}
         </header>
         <div className="px-6 py-5">{children}</div>
       </div>

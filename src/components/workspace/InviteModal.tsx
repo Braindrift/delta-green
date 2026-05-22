@@ -255,6 +255,7 @@ export function InviteModal({ campaignId, callerId, onClose }: InviteModalProps)
       title={title}
       onClose={onClose}
       preventClose={submitting}
+      closeOnChrome={false}
       width={520}
     >
       {!isConfirm ? (
@@ -266,26 +267,31 @@ export function InviteModal({ campaignId, callerId, onClose }: InviteModalProps)
             }
           />
 
-          {view.kind === 'username' ? (
-            <UsernameTab
-              query={query}
-              onQueryChange={setQuery}
-              searching={searching}
-              results={visibleResults}
-              statusMap={statusMap}
-              selected={selected}
-              onToggle={(id) =>
-                setSelected((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(id)) next.delete(id);
-                  else next.add(id);
-                  return next;
-                })
-              }
-            />
-          ) : (
-            <EmailTab email={email} onEmailChange={setEmail} />
-          )}
+          {/* Fixed body height so the modal doesn't reflow between the
+              username and email tabs — username = search + 240px list,
+              email = a single field. */}
+          <div className="min-h-[310px] flex flex-col">
+            {view.kind === 'username' ? (
+              <UsernameTab
+                query={query}
+                onQueryChange={setQuery}
+                searching={searching}
+                results={visibleResults}
+                statusMap={statusMap}
+                selected={selected}
+                onToggle={(id) =>
+                  setSelected((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(id)) next.delete(id);
+                    else next.add(id);
+                    return next;
+                  })
+                }
+              />
+            ) : (
+              <EmailTab email={email} onEmailChange={setEmail} />
+            )}
+          </div>
 
           <footer className="flex items-center justify-between gap-3 pt-2">
             <button
@@ -413,7 +419,7 @@ function UsernameTab({
         />
       </label>
 
-      <div className="border border-green-dim bg-desk-edge max-h-[260px] min-h-[180px] overflow-y-auto">
+      <div className="border border-green-dim bg-desk-edge h-[240px] overflow-y-auto">
         {trimmed === '' ? (
           <EmptyListLine text="Type a username to search." />
         ) : searching && results.length === 0 ? (
@@ -460,7 +466,7 @@ function EmailTab({
   onEmailChange: (v: string) => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 min-h-[200px]">
+    <div className="flex flex-col gap-3">
       <label className="flex flex-col gap-1">
         <span className="font-ui text-[10px] tracking-[0.18em] uppercase text-green-mid">
           Email
