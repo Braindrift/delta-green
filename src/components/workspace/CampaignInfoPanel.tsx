@@ -31,6 +31,7 @@ import { listCampaignMembers, listPendingInvitations } from '@/lib/members';
 import { listCampaignPcs } from '@/lib/player-characters';
 import { useAuth } from '@/contexts/AuthContext';
 import { ModalShell } from '@/components/common/ModalShell';
+import { InviteModal } from '@/components/workspace/InviteModal';
 import type { Campaign } from '@/types/campaigns';
 import type {
   CampaignMemberWithProfile,
@@ -60,12 +61,11 @@ type LoadState =
       pcsByOwner: Record<string, string>;
     };
 
-type StubKind = 'manage-players' | 'edit' | 'invite' | 'info' | 'assign';
+type StubKind = 'manage-players' | 'edit' | 'info' | 'assign';
 
 const STUB_TITLES: Record<StubKind, string> = {
   'manage-players': 'Manage Players',
   edit: 'Edit Campaign',
-  invite: 'Invite Players',
   info: 'Agent Info',
   assign: 'Assign Character',
 };
@@ -82,6 +82,7 @@ export function CampaignInfoPanel({
   const callerId = user?.id ?? null;
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [stub, setStub] = useState<StubKind | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   const reload = useCallback(async () => {
     setState({ kind: 'loading' });
@@ -184,7 +185,7 @@ export function CampaignInfoPanel({
           {isGm ? (
             <button
               type="button"
-              onClick={() => setStub('invite')}
+              onClick={() => setInviteOpen(true)}
               className={dashedCtaClass}
             >
               + Invite More Players
@@ -218,6 +219,16 @@ export function CampaignInfoPanel({
       ) : null}
 
       {stub ? <StubOverlay kind={stub} onBack={() => setStub(null)} /> : null}
+      {inviteOpen ? (
+        <InviteModal
+          campaignId={campaignId}
+          callerId={callerId}
+          onClose={() => {
+            setInviteOpen(false);
+            void reload();
+          }}
+        />
+      ) : null}
     </section>
   );
 }
