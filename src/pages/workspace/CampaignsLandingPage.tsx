@@ -65,6 +65,7 @@ type PanelView =
       campaignName: string;
       memberCount: number;
       maxAgents: number;
+      role: 'gm' | 'player';
     };
 
 export function CampaignsLandingPage() {
@@ -74,8 +75,14 @@ export function CampaignsLandingPage() {
   const { showToast } = useToast();
 
   const handleInfoRequest = useCallback(
-    (campaignId: string, campaignName: string, memberCount: number, maxAgents: number) => {
-      setPanelView({ kind: 'info', campaignId, campaignName, memberCount, maxAgents });
+    (
+      campaignId: string,
+      campaignName: string,
+      memberCount: number,
+      maxAgents: number,
+      role: 'gm' | 'player',
+    ) => {
+      setPanelView({ kind: 'info', campaignId, campaignName, memberCount, maxAgents, role });
     },
     [],
   );
@@ -162,6 +169,7 @@ export function CampaignsLandingPage() {
             campaignName={panelView.campaignName}
             memberCount={panelView.memberCount}
             maxAgents={panelView.maxAgents}
+            role={panelView.role}
             onClose={handleCloseInfo}
           />
         ) : (
@@ -305,6 +313,7 @@ type MembershipsSectionProps = {
     campaignName: string,
     memberCount: number,
     maxAgents: number,
+    role: 'gm' | 'player',
   ) => void;
 };
 
@@ -357,6 +366,7 @@ function CampaignCard({
     campaignName: string,
     memberCount: number,
     maxAgents: number,
+    role: 'gm' | 'player',
   ) => void;
 }) {
   const { campaign, member_count, role } = membership;
@@ -432,7 +442,9 @@ function CampaignCard({
         </Link>
         <button
           type="button"
-          onClick={() => onInfo(campaign.id, campaign.name, member_count, campaign.max_agents)}
+          onClick={() =>
+            onInfo(campaign.id, campaign.name, member_count, campaign.max_agents, role)
+          }
           className={[
             'font-ui text-[11px] tracking-[0.22em] uppercase px-3 py-[7px] text-center',
             'text-green-accent border border-green-mid bg-green-accent/[0.06]',
