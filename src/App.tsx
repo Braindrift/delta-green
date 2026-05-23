@@ -33,7 +33,6 @@ import {
 import { SignupPage } from '@/pages/SignupPage';
 import { CampaignsLandingPage } from '@/pages/workspace/CampaignsLandingPage';
 import { CreateCampaignPage } from '@/pages/workspace/CreateCampaignPage';
-import { WorkspaceAgentsPage } from '@/pages/workspace/WorkspaceAgentsPage';
 import { WorkspaceNotificationsPage } from '@/pages/workspace/WorkspaceNotificationsPage';
 import { WorkspaceBrowsePage } from '@/pages/workspace/WorkspaceBrowsePage';
 import { WorkspaceProfilePage } from '@/pages/workspace/WorkspaceProfilePage';
@@ -46,7 +45,7 @@ import { WorkspacePreferencesPage } from '@/pages/workspace/WorkspacePreferences
  * Auth screens are public. Authenticated routes split into two protected
  * subtrees:
  *
- *   Workspace shell  — `/`, `/agents`, `/notifications`, `/browse`, and
+ *   Workspace shell  — `/`, `/notifications`, `/browse`, and
  *                      account stubs. `WorkspaceLayout` renders the shared
  *                      header + workspace sidebar.
  *
@@ -84,7 +83,11 @@ function App() {
           >
             <Route index element={<CampaignsLandingPage />} />
             <Route path="campaigns/new" element={<CreateCampaignPage />} />
-            <Route path="agents" element={<WorkspaceAgentsPage />} />
+            {/* `/agents` used to host a full-width copy of the agent roster.
+                Removed once the workspace landing already showed the same
+                `AgentRosterPanel` in its right column; keep a redirect so
+                older links/bookmarks don't 404. */}
+            <Route path="agents" element={<Navigate to="/" replace />} />
             <Route path="notifications" element={<WorkspaceNotificationsPage />} />
             <Route path="browse" element={<WorkspaceBrowsePage />} />
             <Route path="profile" element={<WorkspaceProfilePage />} />

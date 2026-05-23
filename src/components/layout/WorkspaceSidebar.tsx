@@ -12,26 +12,33 @@ type WorkspaceNavItem = {
   badgeKind?: 'notifications';
   /**
    * Optional override for the "active" predicate. When omitted, the NavLink's
-   * own `isActive` (exact match) is used. The Campaigns item uses this to stay
+   * own `isActive` (exact match) is used. The Dossier item uses this to stay
    * highlighted across the campaign-management subtree (`/campaigns/:id/manage/...`),
    * because management is a workspace-layer concern even when the URL sits
    * under `/campaigns/`.
    */
   matchPathname?: (pathname: string) => boolean;
+  /**
+   * Optional `location.state` payload to attach on navigation. The Dossier
+   * item uses `{ closeInfo: true }` so `CampaignsLandingPage` collapses its
+   * info panel back to the list when the user clicks DOSSIER while already
+   * on `/` — mirroring the panel's BACK button.
+   */
+  state?: unknown;
 };
 
 const WORKSPACE_NAV: WorkspaceNavItem[] = [
   {
     to: '/',
-    label: 'CAMPAIGNS',
+    label: 'DOSSIER',
     // Active on `/` itself plus any `/campaigns/...` route — the
     // workspace-layer campaign management screens (DEL-43) live there too.
     // The campaign shell uses AppLayout (no WorkspaceSidebar), so this
     // predicate only fires on the workspace-rendered subset.
     matchPathname: (pathname) =>
       pathname === '/' || pathname === '/campaigns' || pathname.startsWith('/campaigns/'),
+    state: { closeInfo: true },
   },
-  { to: '/agents', label: 'AGENTS' },
   { to: '/notifications', label: 'NOTIFICATIONS', badgeKind: 'notifications' },
   { to: '/browse', label: 'BROWSE' },
 ];
@@ -51,6 +58,7 @@ export function WorkspaceSidebar() {
             <NavLink
               key={item.to}
               to={item.to}
+              state={item.state}
               end={item.to === '/' && item.matchPathname === undefined}
               className={({ isActive }) => {
                 const active = matched ?? isActive;

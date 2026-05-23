@@ -7,9 +7,8 @@
  * wireframe (dashed-border card, "Create campaign" CTA).
  *
  * Right column (DEL-65): the shared `<AgentRosterPanel>` rendering the
- * caller's full PC roster. Same component is reused at `/agents` in the
- * page-width variant. The earlier active-agent dropdown + "Open in roster"
- * placeholder is gone — the panel hosts the roster directly.
+ * caller's full PC roster. The earlier active-agent dropdown + "Open in
+ * roster" placeholder is gone — the panel hosts the roster directly.
  *
  * Data:
  *   - `listMyMemberships()` returns membership rows joined with campaign
@@ -113,6 +112,18 @@ export function CampaignsLandingPage() {
     // above are captured once for the initial-state seed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // DOSSIER sidebar item carries `{ closeInfo: true }` in location.state.
+  // Clicking it while already on `/` doesn't unmount this page, so the only
+  // way to honour the BACK-equivalent close-on-click contract is to react to
+  // fresh navigations into this route that carry the signal.
+  useEffect(() => {
+    const state = location.state as { closeInfo?: boolean } | null;
+    if (state?.closeInfo) {
+      setPanelView({ kind: 'list' });
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.key, location.pathname, location.state, navigate]);
 
   const handleInfoRequest = useCallback(
     (
