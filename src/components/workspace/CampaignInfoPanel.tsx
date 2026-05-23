@@ -211,7 +211,7 @@ export function CampaignInfoPanel({
             </button>
           ) : null}
 
-          <footer className="flex items-center justify-between gap-3 pt-2">
+          <footer className="flex items-center justify-between gap-3 pt-2 pr-[17px]">
             <button
               type="button"
               onClick={onClose}
@@ -262,25 +262,25 @@ function GameMasterSection({
   gm: CampaignMemberWithProfile | null;
 }) {
   return (
-    <section className="border border-green-dim bg-desk-edge px-4 py-3">
-      <div className="font-ui text-[10px] tracking-[0.18em] uppercase text-green-mid">
+    <section>
+      <h2 className="font-display text-[13px] font-light tracking-[0.22em] uppercase text-paper-worn mb-3">
         Game Master
-      </div>
+      </h2>
       {gm ? (
-        <div className="flex items-center gap-2 mt-[6px]">
+        <div className="flex items-center gap-3">
           <span
             aria-hidden="true"
-            className="font-ui text-[14px] text-amber-dim"
+            className="font-ui text-[14px] text-amber-dim leading-none"
             title="Handler"
           >
             ♛
           </span>
-          <span className="font-ui text-[14px] text-paper truncate">
+          <span className="font-ui text-[12px] tracking-[0.06em] text-paper truncate">
             {gm.username ?? 'unknown handler'}
           </span>
         </div>
       ) : (
-        <div className="font-ui text-[12px] uppercase tracking-[0.12em] text-green-mid mt-[6px]">
+        <div className="font-ui text-[12px] uppercase tracking-[0.12em] text-green-mid">
           No handler assigned.
         </div>
       )}
@@ -371,7 +371,7 @@ function PlayerRow({
   const handle = username ?? 'unknown agent';
 
   return (
-    <li className="grid grid-cols-[1fr_1fr_auto] items-center gap-3 px-4 py-3 border-b border-green-dim/40 last:border-b-0">
+    <li className="grid grid-cols-3 items-center gap-3 px-4 py-3 border-b border-green-dim/40 last:border-b-0">
       <div className="flex items-center gap-3 min-w-0">
         <StatusDot variant={badge} />
         <span className="font-ui text-[12px] tracking-[0.06em] text-paper truncate">
@@ -513,7 +513,7 @@ function StubOverlay({ kind, onBack }: { kind: StubKind; onBack: () => void }) {
 /* -------------------------------------------------------------------------- */
 
 const primaryButtonClass = [
-  'font-ui text-[11px] tracking-[0.22em] uppercase px-4 py-[9px]',
+  'font-ui text-[11px] tracking-[0.22em] uppercase px-4 py-[9px] min-w-[80px] text-center',
   'text-green-accent border border-green-mid bg-green-accent/[0.06]',
   'transition-all duration-150',
   'hover:bg-green-accent/[0.12] hover:border-green-bright',
@@ -528,7 +528,7 @@ const secondaryButtonClass = [
 ].join(' ');
 
 const rowButtonClass = [
-  'font-ui text-[10px] tracking-[0.22em] uppercase px-3 py-[6px] flex-shrink-0',
+  'font-ui text-[10px] tracking-[0.22em] uppercase px-3 py-[6px] flex-shrink-0 min-w-[80px] text-center',
   'text-green-accent border border-green-mid bg-green-accent/[0.06]',
   'transition-all duration-150',
   'hover:bg-green-accent/[0.12] hover:border-green-bright',
