@@ -30,6 +30,7 @@ import { getCampaignById } from '@/lib/campaigns';
 import { listCampaignMembers, listPendingInvitations } from '@/lib/members';
 import { listCampaignPcs } from '@/lib/player-characters';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDelayedFlag } from '@/hooks/useDelayedFlag';
 import { ModalShell } from '@/components/common/ModalShell';
 import { InviteModal } from '@/components/workspace/InviteModal';
 import type { Campaign } from '@/types/campaigns';
@@ -125,6 +126,11 @@ export function CampaignInfoPanel({
     void Promise.resolve().then(() => reload());
   }, [reload]);
 
+  // DEL-82: only paint the loading card if the fetch is still pending
+  // after a short delay — fast loads (the common case) swap straight to
+  // the ready body with no flash.
+  const showLoading = useDelayedFlag(state.kind === 'loading');
+
   const { gm, activePlayers } = useMemo(() => {
     if (state.kind !== 'ready') {
       return { gm: null, activePlayers: [] as CampaignMemberWithProfile[] };
@@ -149,7 +155,7 @@ export function CampaignInfoPanel({
         </p>
       </header>
 
-      {state.kind === 'loading' ? <LoadingCard /> : null}
+      {state.kind === 'loading' && showLoading ? <LoadingCard /> : null}
       {state.kind === 'error' ? <ErrorCard onRetry={() => void reload()} /> : null}
 
       {state.kind === 'ready' ? (
