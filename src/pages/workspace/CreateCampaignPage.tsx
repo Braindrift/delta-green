@@ -26,6 +26,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { checkCampaignNameAvailable, createCampaign } from '@/lib/campaigns';
+import { ModalShell } from '@/components/common/ModalShell';
 import type { Campaign } from '@/types/campaigns';
 
 const MAX_AGENTS_MIN = 1;
@@ -143,14 +144,7 @@ export function CreateCampaignPage() {
     }
   }
 
-  if (view.kind === 'success') {
-    return (
-      <SuccessOverlay
-        campaign={view.campaign}
-        onOpenWorkspace={() => navigate('/')}
-      />
-    );
-  }
+  const successCampaign = view.kind === 'success' ? view.campaign : null;
 
   return (
     <div className="max-w-xl">
@@ -248,6 +242,27 @@ export function CreateCampaignPage() {
           </Link>
         </div>
       </form>
+
+      {successCampaign ? (
+        <SuccessModal
+          campaign={successCampaign}
+          onReturn={() => navigate('/')}
+          onInfo={() =>
+            navigate('/', {
+              state: {
+                openInfo: {
+                  campaignId: successCampaign.id,
+                  campaignName: successCampaign.name,
+                  memberCount: 1,
+                  maxAgents: successCampaign.max_agents,
+                  role: 'gm' as const,
+                },
+              },
+            })
+          }
+          onEnter={() => navigate(`/campaigns/${successCampaign.id}/operations`)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -385,53 +400,73 @@ function FormTextArea({ label, value, onChange, hint }: FormTextAreaProps) {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Success overlay                                                           */
+/*  Success modal                                                             */
 /* -------------------------------------------------------------------------- */
 
-type SuccessOverlayProps = {
+type SuccessModalProps = {
   campaign: Campaign;
-  onOpenWorkspace: () => void;
+  onReturn: () => void;
+  onInfo: () => void;
+  onEnter: () => void;
 };
 
-function SuccessOverlay({ campaign, onOpenWorkspace }: SuccessOverlayProps) {
+// closeOnChrome={false}: the campaign exists, the Handler must pick one of the
+// three destinations — there's no "cancel" semantics here. Matches the
+// InviteModal pattern of an explicit, body-only exit path.
+function SuccessModal({ campaign, onReturn, onInfo, onEnter }: SuccessModalProps) {
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="cc-success-title"
-      className="max-w-xl"
+    <ModalShell
+      title="Dossier filed"
+      subtitle={campaign.name}
+      onClose={onReturn}
+      closeOnChrome={false}
     >
-      <div className="border border-green-mid bg-desk-edge px-7 py-7">
-        <div className="font-stamp text-amber text-sm tracking-[0.22em] uppercase mb-2">
-          Dossier filed
-        </div>
-        <h2
-          id="cc-success-title"
-          className="font-display text-[22px] font-light tracking-[0.18em] uppercase text-paper mb-3"
-        >
-          {campaign.name}
-        </h2>
-        <p className="font-ui text-[11px] tracking-[0.08em] text-paper-worn leading-relaxed mb-6">
-          Campaign created and you have been filed as Handler.
-        </p>
+      <p className="font-ui text-[11px] tracking-[0.08em] text-paper-worn leading-relaxed mb-6">
+        Campaign created and you have been filed as Handler. Where to next?
+      </p>
 
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <button
-            type="button"
-            onClick={onOpenWorkspace}
-            className={[
-              'flex-1 font-ui text-[11px] tracking-[0.22em] uppercase px-4 py-[11px]',
-              'text-green-accent border border-green-mid bg-green-accent/[0.06]',
-              'cursor-pointer transition-all duration-150',
-              'hover:bg-green-accent/[0.12] hover:border-green-bright',
-              'hover:shadow-[0_0_12px_rgba(116,176,110,0.18)]',
-              'focus:outline-none focus:border-green-accent focus:bg-green-accent/[0.14]',
-            ].join(' ')}
-          >
-            Open workspace
-          </button>
-        </div>
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <button
+          type="button"
+          onClick={onReturn}
+          className={[
+            'flex-1 font-ui text-[11px] tracking-[0.22em] uppercase px-4 py-[11px]',
+            'text-green-mid border border-green-dim bg-transparent',
+            'cursor-pointer transition-all duration-150',
+            'hover:text-paper hover:border-green-mid',
+            'focus:outline-none focus:border-green-mid focus:text-paper',
+          ].join(' ')}
+        >
+          Return
+        </button>
+        <button
+          type="button"
+          onClick={onInfo}
+          className={[
+            'flex-1 font-ui text-[11px] tracking-[0.22em] uppercase px-4 py-[11px]',
+            'text-green-mid border border-green-dim bg-transparent',
+            'cursor-pointer transition-all duration-150',
+            'hover:text-paper hover:border-green-mid',
+            'focus:outline-none focus:border-green-mid focus:text-paper',
+          ].join(' ')}
+        >
+          Info
+        </button>
+        <button
+          type="button"
+          onClick={onEnter}
+          className={[
+            'flex-1 font-ui text-[11px] tracking-[0.22em] uppercase px-4 py-[11px]',
+            'text-green-accent border border-green-mid bg-green-accent/[0.06]',
+            'cursor-pointer transition-all duration-150',
+            'hover:bg-green-accent/[0.12] hover:border-green-bright',
+            'hover:shadow-[0_0_12px_rgba(116,176,110,0.18)]',
+            'focus:outline-none focus:border-green-accent focus:bg-green-accent/[0.14]',
+          ].join(' ')}
+        >
+          Enter
+        </button>
       </div>
-    </div>
+    </ModalShell>
   );
 }
