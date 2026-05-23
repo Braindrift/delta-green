@@ -25,7 +25,7 @@
  *     DEF-1 / DEL-?.
  */
 
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { useCallback, useEffect, useState } from 'react';
 
@@ -68,11 +68,51 @@ type PanelView =
       role: 'gm' | 'player';
     };
 
+// DEL-80: CreateCampaignPage navigates here with this payload when the Handler
+// picks "Info" from the post-create modal. Seeds the info panel directly so
+// the just-created campaign's panel opens without a card-click round-trip.
+type OpenInfoState = {
+  openInfo?: {
+    campaignId: string;
+    campaignName: string;
+    memberCount: number;
+    maxAgents: number;
+    role: 'gm' | 'player';
+  };
+};
+
 export function CampaignsLandingPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const openInfo = (location.state as OpenInfoState | null)?.openInfo;
+
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [dialog, setDialog] = useState<LeaveDialogState>({ kind: 'closed' });
-  const [panelView, setPanelView] = useState<PanelView>({ kind: 'list' });
+  const [panelView, setPanelView] = useState<PanelView>(
+    openInfo
+      ? {
+          kind: 'info',
+          campaignId: openInfo.campaignId,
+          campaignName: openInfo.campaignName,
+          memberCount: openInfo.memberCount,
+          maxAgents: openInfo.maxAgents,
+          role: openInfo.role,
+        }
+      : { kind: 'list' },
+  );
   const { showToast } = useToast();
+
+  // Clear the consumed history state so a back/forward shuffle (or any later
+  // re-render that re-reads location.state) doesn't re-open the panel after
+  // the user has closed it.
+  useEffect(() => {
+    if (openInfo) {
+      navigate(location.pathname, { replace: true, state: null });
+    }
+    // Intentionally empty deps: this only needs to fire on mount. The values
+    // above are captured once for the initial-state seed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleInfoRequest = useCallback(
     (
