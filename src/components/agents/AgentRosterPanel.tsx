@@ -31,6 +31,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useToast } from '@/contexts/ToastContext';
+import { useDelayedFlag } from '@/hooks/useDelayedFlag';
 import {
   listMyPlayerCharacters,
   migratePlayerCharacterToNpc,
@@ -83,6 +84,9 @@ export function AgentRosterPanel() {
   useEffect(() => {
     void Promise.resolve().then(() => reload());
   }, [reload]);
+
+  // DEL-82: suppress the "Loading roster…" flash on fast loads.
+  const showLoading = useDelayedFlag(state.kind === 'loading');
 
   const unassigned = useMemo(
     () =>
@@ -137,7 +141,7 @@ export function AgentRosterPanel() {
 
       {showRoster ? (
         <>
-          {state.kind === 'loading' ? <LoadingCard /> : null}
+          {state.kind === 'loading' && showLoading ? <LoadingCard /> : null}
           {state.kind === 'error' ? <ErrorCard onRetry={() => void reload()} /> : null}
 
           {isReady && isEmpty ? (

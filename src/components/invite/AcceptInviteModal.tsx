@@ -22,6 +22,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ModalShell } from '@/components/common/ModalShell';
 import type { InviteGoneVariant } from '@/components/invite/InviteGoneScreen';
 import { useToast } from '@/contexts/ToastContext';
+import { useDelayedFlag } from '@/hooks/useDelayedFlag';
 import {
   acceptInvitation,
   declineInvitation,
@@ -89,6 +90,11 @@ export function AcceptInviteModal({
   useEffect(() => {
     void Promise.resolve().then(() => load());
   }, [load]);
+
+  // DEL-82: suppress the "Decrypting / Loading invitation…" flash on
+  // fast loads — the invitation row resolves immediately in the common
+  // case and the inline notice is pure flicker.
+  const showLoading = useDelayedFlag(state.kind === 'loading');
 
   async function handleAccept() {
     if (state.kind !== 'ready' || submit.kind === 'accepting' || submit.kind === 'declining') {
@@ -164,7 +170,7 @@ export function AcceptInviteModal({
       preventClose={busy}
       width={560}
     >
-      {state.kind === 'loading' ? (
+      {state.kind === 'loading' && showLoading ? (
         <InlineNotice tone="notice" title="Decrypting" body="Loading invitation…" />
       ) : null}
 

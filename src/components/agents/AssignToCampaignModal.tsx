@@ -22,6 +22,7 @@
 import { useEffect, useState } from 'react';
 
 import { ModalShell } from '@/components/common/ModalShell';
+import { useDelayedFlag } from '@/hooks/useDelayedFlag';
 import { listMyMemberships } from '@/lib/campaigns';
 import { assignPlayerCharacterToCampaign } from '@/lib/player-characters';
 import type { CampaignMembership } from '@/types/campaigns';
@@ -101,6 +102,10 @@ export function AssignToCampaignModal({
 
   const isEmpty = load.kind === 'ready' && load.eligible.length === 0;
 
+  // DEL-82: hide the "Loading campaigns…" line on fast loads so the modal
+  // renders the eligible-campaigns picker without an interim flash.
+  const showLoading = useDelayedFlag(load.kind === 'loading');
+
   return (
     <ModalShell
       title="Assign agent"
@@ -109,7 +114,7 @@ export function AssignToCampaignModal({
       preventClose={submitting}
       width={460}
     >
-      {load.kind === 'loading' ? (
+      {load.kind === 'loading' && showLoading ? (
         <p className="font-ui text-[11px] tracking-[0.12em] uppercase text-green-mid mb-5">
           Loading campaigns…
         </p>
