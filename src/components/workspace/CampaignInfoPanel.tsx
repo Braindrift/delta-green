@@ -146,13 +146,18 @@ export function CampaignInfoPanel({
 
   return (
     <section>
-      <header className="mb-7">
-        <h1 className="font-display text-[26px] font-light tracking-[0.18em] uppercase text-paper truncate">
+      <header className="mb-7 flex items-start justify-between gap-4">
+        <h1 className="font-display text-[26px] font-light tracking-[0.18em] uppercase text-paper truncate min-w-0">
           {campaignName}
         </h1>
-        <p className="font-ui text-[11px] tracking-[0.14em] text-green-mid mt-1 uppercase">
-          Player slots {memberCount} / {maxAgents}
-        </p>
+        <div className="flex flex-col items-end flex-shrink-0">
+          <span className="font-ui text-[10px] tracking-[0.18em] uppercase text-green-mid">
+            Player slots
+          </span>
+          <span className="font-display text-[20px] font-light tracking-[0.08em] text-paper mt-[2px]">
+            {memberCount}/{maxAgents}
+          </span>
+        </div>
       </header>
 
       {state.kind === 'loading' && showLoading ? <LoadingCard /> : null}
@@ -161,12 +166,20 @@ export function CampaignInfoPanel({
       {state.kind === 'ready' ? (
         <div className="flex flex-col gap-7">
           {state.campaign.description ? (
-            <p className="font-ui text-[12px] leading-relaxed text-paper-worn whitespace-pre-line">
-              {state.campaign.description}
-            </p>
+            <div className="flex flex-col gap-3">
+              <div className="font-ui text-[10px] tracking-[0.18em] uppercase text-green-mid">
+                Description
+              </div>
+              <p className="font-ui text-[12px] leading-relaxed text-paper-worn whitespace-pre-line">
+                {state.campaign.description}
+              </p>
+              <hr className="border-t border-green-dim/40 mt-1" />
+            </div>
           ) : null}
 
-          <GameMasterSection gm={gm} pcsByOwner={state.pcsByOwner} />
+          <GameMasterSection gm={gm} />
+
+          <hr className="border-t border-green-dim/40 -mt-2" />
 
           <PlayersSection
             players={activePlayers}
@@ -245,16 +258,16 @@ export function CampaignInfoPanel({
 
 function GameMasterSection({
   gm,
-  pcsByOwner,
 }: {
   gm: CampaignMemberWithProfile | null;
-  pcsByOwner: Record<string, string>;
 }) {
   return (
-    <SectionShell title="Game Master">
+    <section className="border border-green-dim bg-desk-edge px-4 py-3">
+      <div className="font-ui text-[10px] tracking-[0.18em] uppercase text-green-mid">
+        Game Master
+      </div>
       {gm ? (
-        <div className="flex items-center gap-3 px-4 py-3">
-          <StatusDot variant="accepted" />
+        <div className="flex items-center gap-2 mt-[6px]">
           <span
             aria-hidden="true"
             className="font-ui text-[14px] text-amber-dim"
@@ -262,21 +275,16 @@ function GameMasterSection({
           >
             ♛
           </span>
-          <div className="flex-1 min-w-0">
-            <div className="font-ui text-[12px] tracking-[0.06em] text-paper truncate">
-              {gm.username ?? 'unknown handler'}
-            </div>
-            {pcsByOwner[gm.user_id] ? (
-              <div className="font-ui text-[10px] tracking-[0.14em] uppercase text-green-mid mt-[2px]">
-                {pcsByOwner[gm.user_id]}
-              </div>
-            ) : null}
-          </div>
+          <span className="font-ui text-[14px] text-paper truncate">
+            {gm.username ?? 'unknown handler'}
+          </span>
         </div>
       ) : (
-        <SectionEmpty text="No handler assigned." />
+        <div className="font-ui text-[12px] uppercase tracking-[0.12em] text-green-mid mt-[6px]">
+          No handler assigned.
+        </div>
       )}
-    </SectionShell>
+    </section>
   );
 }
 
@@ -302,10 +310,11 @@ function PlayersSection({
   headerAction?: ReactNode;
 }) {
   const total = players.length + pendingInvitations.length;
+  const isEmpty = total === 0;
 
   return (
-    <SectionShell title="Players" count={total} headerAction={headerAction}>
-      {total === 0 ? (
+    <SectionShell title="Players" headerAction={headerAction}>
+      {isEmpty ? (
         <SectionEmpty text="No agents yet." />
       ) : (
         <ul>
@@ -362,26 +371,33 @@ function PlayerRow({
   const handle = username ?? 'unknown agent';
 
   return (
-    <li className="flex items-center gap-3 px-4 py-3 border-b border-green-dim/40 last:border-b-0">
-      <StatusDot variant={badge} />
-      <div className="flex-1 min-w-0">
-        <div className="font-ui text-[12px] tracking-[0.06em] text-paper truncate">
+    <li className="grid grid-cols-[1fr_1fr_auto] items-center gap-3 px-4 py-3 border-b border-green-dim/40 last:border-b-0">
+      <div className="flex items-center gap-3 min-w-0">
+        <StatusDot variant={badge} />
+        <span className="font-ui text-[12px] tracking-[0.06em] text-paper truncate">
           {handle}
-        </div>
-        <div className="font-ui text-[10px] tracking-[0.14em] uppercase text-green-mid mt-[2px]">
-          {pcName ?? 'Unassigned'}
-        </div>
+        </span>
       </div>
-      {action.kind === 'info' ? (
-        <button type="button" onClick={action.onClick} className={rowButtonClass}>
-          Info
-        </button>
-      ) : null}
-      {action.kind === 'assign' ? (
-        <button type="button" onClick={action.onClick} className={rowButtonClass}>
-          Assign
-        </button>
-      ) : null}
+      <div className="flex flex-col items-center text-center min-w-0">
+        <span className="font-ui text-[9px] tracking-[0.18em] uppercase text-green-mid">
+          Character
+        </span>
+        <span className="font-ui text-[12px] tracking-[0.06em] text-paper-worn truncate max-w-full mt-[1px]">
+          {pcName ?? 'Unassigned'}
+        </span>
+      </div>
+      <div className="flex justify-end">
+        {action.kind === 'info' ? (
+          <button type="button" onClick={action.onClick} className={rowButtonClass}>
+            Info
+          </button>
+        ) : null}
+        {action.kind === 'assign' ? (
+          <button type="button" onClick={action.onClick} className={rowButtonClass}>
+            Assign
+          </button>
+        ) : null}
+      </div>
     </li>
   );
 }
@@ -408,12 +424,10 @@ function StatusDot({ variant }: { variant: 'accepted' | 'invited' }) {
 
 function SectionShell({
   title,
-  count,
   headerAction,
   children,
 }: {
   title: string;
-  count?: number;
   headerAction?: ReactNode;
   children: ReactNode;
 }) {
@@ -422,9 +436,6 @@ function SectionShell({
       <div className="flex items-end justify-between gap-3 mb-3">
         <h2 className="font-display text-[13px] font-light tracking-[0.22em] uppercase text-paper-worn">
           {title}
-          {typeof count === 'number' ? (
-            <span className="text-green-mid"> · {count}</span>
-          ) : null}
         </h2>
         {headerAction}
       </div>
