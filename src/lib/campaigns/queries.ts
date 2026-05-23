@@ -79,9 +79,12 @@ export async function listCampaigns(): Promise<Result<Campaign[]>> {
  * campaign rows the workspace landing page needs to render.
  *
  * Reads from `campaign_members`:
- *   - filtered by `user_id = auth.uid()` (explicit narrowing; RLS already
- *     restricts to rows the caller can read, but the explicit filter avoids
- *     surprises if a future helper policy ever widens the read scope),
+ *   - filtered by `user_id = auth.uid()` — load-bearing, not defensive: the
+ *     RLS policy on `campaign_members` lets every active member (and every
+ *     Handler) read other members' rows in the same campaign so the Members
+ *     screen can render the roster. Without this filter, a 2-person campaign
+ *     would return both members' rows to either caller, causing the landing
+ *     page to list the campaign under both "As Handler" and "As Agent",
  *   - filtered by `status = 'active'` so left/kicked members aren't listed,
  *   - inner-joined to `campaigns` with `deleted_at is null` so soft-deleted
  *     campaigns are excluded from the join product itself rather than
@@ -97,9 +100,14 @@ export async function listCampaigns(): Promise<Result<Campaign[]>> {
  * Ordered by `campaign.name` so the landing page is alphabetically stable.
  */
 export async function listMyMemberships(): Promise<Result<CampaignMembership[]>> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user.id;
+  if (!userId) return ok([]);
+
   const { data, error } = await supabase
     .from('campaign_members')
     .select('role, campaign:campaigns!inner(*)')
+    .eq('user_id', userId)
     .eq('status', 'active')
     .is('campaign.deleted_at', null)
     .order('name', { foreignTable: 'campaigns', ascending: true });

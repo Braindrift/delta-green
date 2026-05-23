@@ -173,12 +173,22 @@ const SAMPLE_CAMPAIGN_B = {
 };
 
 describe('listMyMemberships', () => {
+  const USER_ID = '99999999-9999-4999-8999-999999999999';
+
+  function mockSession(userId: string | null) {
+    getSessionMock.mockResolvedValueOnce({
+      data: { session: userId ? { user: { id: userId } } : null },
+    });
+  }
+
   beforeEach(() => {
     maybeSingleMock.mockReset();
     queryMock.mockReset();
+    getSessionMock.mockReset();
   });
 
   it('returns memberships joined with campaigns and merged member counts', async () => {
+    mockSession(USER_ID);
     // 1st query: campaign_members rows with embedded campaign.
     queryMock.mockResolvedValueOnce({
       data: [
@@ -209,6 +219,7 @@ describe('listMyMemberships', () => {
   });
 
   it('unwraps the campaign when PostgREST returns it as a single-element array', async () => {
+    mockSession(USER_ID);
     queryMock.mockResolvedValueOnce({
       data: [{ role: 'gm', campaign: [SAMPLE_CAMPAIGN_A] }],
       error: null,
@@ -229,6 +240,7 @@ describe('listMyMemberships', () => {
   });
 
   it('returns an empty array when the user has no memberships, without a second query', async () => {
+    mockSession(USER_ID);
     queryMock.mockResolvedValueOnce({ data: [], error: null });
 
     const result = await listMyMemberships();
@@ -243,6 +255,7 @@ describe('listMyMemberships', () => {
   });
 
   it('maps an unknown Postgres error from the join query to unknown', async () => {
+    mockSession(USER_ID);
     queryMock.mockResolvedValueOnce({
       data: null,
       error: { code: 'XX000', message: 'internal_error', details: '', hint: '' },
@@ -257,6 +270,7 @@ describe('listMyMemberships', () => {
   });
 
   it('surfaces an error from the count query through to the caller', async () => {
+    mockSession(USER_ID);
     queryMock.mockResolvedValueOnce({
       data: [{ role: 'gm', campaign: SAMPLE_CAMPAIGN_A }],
       error: null,
@@ -272,6 +286,18 @@ describe('listMyMemberships', () => {
     if (!result.ok) {
       expect(result.kind).toBe('unknown');
     }
+  });
+
+  it('returns an empty array without hitting the DB when no session is hydrated', async () => {
+    mockSession(null);
+
+    const result = await listMyMemberships();
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toEqual([]);
+    }
+    expect(queryMock).not.toHaveBeenCalled();
   });
 });
 
