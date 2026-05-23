@@ -54,6 +54,39 @@ Repo path on Windows: `E:\Projects\ProjectsWebApps\delta-green`.
 
 ---
 
+## Applying schema migrations
+
+Migrations get applied via **`npx supabase db push`**, not via the MCP
+`apply_migration` tool. Two paths, two clocks:
+
+- `db push` reads the filename's timestamp and writes that into the remote
+  `supabase_migrations.schema_migrations` bookkeeping table.
+- `apply_migration` (MCP) stamps with its *own* clock at apply time,
+  ignoring the filename.
+
+Mixing the two causes the bookkeeping table to drift away from the local
+filenames. Once that happens, the next `db push` refuses to run — which
+tempts a fallback to `apply_migration` — which adds more drift. This loop
+has bitten us across multiple sessions. Don't restart it.
+
+Standard flow for a migration ticket:
+
+1. **Before writing new SQL**, run `npx supabase migration list --linked`
+   to confirm local and remote columns agree. If anything is misaligned,
+   repair it with `npx supabase migration repair --status applied <ver>`
+   or `--status reverted <ver>` before adding new files on top. `repair`
+   only touches the bookkeeping table; it doesn't run or undo SQL.
+2. Write the file to `supabase/migrations/<UTC>_<snake_case>.sql`.
+3. Apply with `npx supabase db push` (it's in the "Ask first" list — ask
+   Erik first per the auto-approval policy below).
+4. If `db push` fails, fix the underlying cause. **Do not reach for MCP
+   `apply_migration` to bypass it.**
+
+MCP `execute_sql` remains fine for smoke tests, reads, and exploratory
+queries — it does not write to the bookkeeping table.
+
+---
+
 ## How we work
 
 The repo is your filesystem. Write files directly, run commands directly.
@@ -89,7 +122,15 @@ Ask first:
 - `git push --force`, `git checkout main`, anything touching `main` directly
 - `gh pr merge` (any merge, squash or otherwise)
 - `npx supabase db push` (schema changes against the remote project)
+- `npx supabase migration repair` (touches the bookkeeping table — ask
+  first so Erik can confirm which row gets relabeled)
 - Any destructive Supabase command
+
+Don't use:
+
+- **MCP `apply_migration`** — see "Applying schema migrations" above.
+  Production migrations go through `npx supabase db push`. If you find
+  yourself reaching for `apply_migration`, stop and ask.
 - Linear issue closes (state → Done) and any **document** writes
 - Deleting branches, files outside the repo, or anything irreversible
 

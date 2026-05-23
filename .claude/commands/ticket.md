@@ -38,6 +38,13 @@ existing migrations directory for schema work, or the relevant component
 tree for UI work. Don't `ls` the whole repo. Batch reads silently — don't
 narrate each `view`.
 
+**If this is a migration ticket** (the DoD calls for schema changes,
+RLS, RPCs, triggers, etc.): also run `npx supabase migration list --linked`
+as part of the scan. If local and remote columns don't agree on every
+row, surface the drift in the plan as a pre-implementation gate — fixing
+it via `npx supabase migration repair` comes before any new SQL goes on
+top. See "Applying schema migrations" in `CLAUDE.md` for the why.
+
 ## 3. Draft the plan
 
 Output budget: ≤ 30 lines. Use the structure in the `ticket-workflow`
