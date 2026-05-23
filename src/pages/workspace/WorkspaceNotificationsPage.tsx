@@ -6,7 +6,7 @@
  *   - "Earlier · read" — rows with `read_at not null`, dimmed
  *
  * Per-kind row rendering switches on `notification.kind`:
- *   - `invite_received`            — Open (→ /invitations/:id), Dismiss
+ *   - `invite_received`            — Open (modal in place — DEL-81), Dismiss
  *   - `invite_accepted`            — Open campaign, Dismiss
  *   - `invite_declined`            — Dismiss
  *   - `campaign_deleted`           — Dismiss only (no source to navigate to)
@@ -24,9 +24,10 @@
  * arrives while inbox is open) show up at the top without a reload.
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
+import { AcceptInviteModal } from '@/components/invite/AcceptInviteModal';
 import { useNotifications } from '@/contexts/NotificationsContext';
 import type {
   CampaignDeletedPayload,
@@ -41,7 +42,8 @@ import type {
 } from '@/types/notifications';
 
 export function WorkspaceNotificationsPage() {
-  const { state, markAllRead, markRead, dismiss } = useNotifications();
+  const { state, markAllRead, markRead, dismiss, reload } = useNotifications();
+  const [openInvitationId, setOpenInvitationId] = useState<string | null>(null);
 
   const { unread, earlier } = useMemo(() => {
     if (state.kind !== 'ready') return { unread: [], earlier: [] };
@@ -93,6 +95,7 @@ export function WorkspaceNotificationsPage() {
               notifications={unread}
               onMarkRead={markRead}
               onDismiss={dismiss}
+              onOpenInvite={setOpenInvitationId}
               dimmed={false}
             />
           ) : null}
@@ -103,10 +106,21 @@ export function WorkspaceNotificationsPage() {
               notifications={earlier}
               onMarkRead={markRead}
               onDismiss={dismiss}
+              onOpenInvite={setOpenInvitationId}
               dimmed
             />
           ) : null}
         </div>
+      ) : null}
+
+      {openInvitationId ? (
+        <AcceptInviteModal
+          invitationId={openInvitationId}
+          onClose={() => setOpenInvitationId(null)}
+          onResolved={() => {
+            void reload();
+          }}
+        />
       ) : null}
     </section>
   );
@@ -122,6 +136,7 @@ type NotifSectionProps = {
   notifications: Notification[];
   onMarkRead: (id: string) => Promise<void> | void;
   onDismiss: (id: string) => Promise<void> | void;
+  onOpenInvite: (invitationId: string) => void;
   dimmed: boolean;
 };
 
@@ -131,6 +146,7 @@ function NotifSection({
   notifications,
   onMarkRead,
   onDismiss,
+  onOpenInvite,
   dimmed,
 }: NotifSectionProps) {
   return (
@@ -145,6 +161,7 @@ function NotifSection({
             notification={n}
             onMarkRead={onMarkRead}
             onDismiss={onDismiss}
+            onOpenInvite={onOpenInvite}
             dimmed={dimmed}
           />
         ))}
@@ -161,18 +178,28 @@ type NotifRowProps = {
   notification: Notification;
   onMarkRead: (id: string) => Promise<void> | void;
   onDismiss: (id: string) => Promise<void> | void;
+  onOpenInvite: (invitationId: string) => void;
   dimmed: boolean;
 };
 
-function NotifRow({ notification, onMarkRead, onDismiss, dimmed }: NotifRowProps) {
+function NotifRow({
+  notification,
+  onMarkRead,
+  onDismiss,
+  onOpenInvite,
+  dimmed,
+}: NotifRowProps) {
   const navigate = useNavigate();
 
   const view = renderForKind(notification);
 
   function handleOpen() {
-    if (!view.openTo) return;
     if (!notification.read_at) void onMarkRead(notification.id);
-    navigate(view.openTo);
+    if (view.openInvitationId) {
+      onOpenInvite(view.openInvitationId);
+      return;
+    }
+    if (view.openTo) navigate(view.openTo);
   }
 
   function handleDismiss() {
@@ -205,7 +232,7 @@ function NotifRow({ notification, onMarkRead, onDismiss, dimmed }: NotifRowProps
       </div>
 
       <div className="flex items-center gap-2 flex-shrink-0">
-        {view.openTo ? (
+        {view.openTo || view.openInvitationId ? (
           <button type="button" onClick={handleOpen} className={openButtonClass}>
             {view.openLabel ?? 'Open'}
           </button>
@@ -227,7 +254,10 @@ type RowView = {
   icon: string;
   title: React.ReactNode;
   body?: React.ReactNode;
+  /** Route to navigate to on Open. Mutually exclusive with `openInvitationId`. */
   openTo?: string;
+  /** Invitation id — opens the accept-invite modal in place (DEL-81). */
+  openInvitationId?: string;
   openLabel?: string;
 };
 
@@ -263,8 +293,8 @@ function renderInviteReceived(p: InviteReceivedPayload): RowView {
         <strong className="text-paper">{campaign}</strong>
       </>
     ),
-    body: 'Open to choose an agent and accept.',
-    openTo: `/invitations/${p.invitation_id}`,
+    body: 'Open to accept or decline.',
+    openInvitationId: p.invitation_id,
     openLabel: 'Open',
   };
 }
