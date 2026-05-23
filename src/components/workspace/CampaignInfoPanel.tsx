@@ -211,7 +211,7 @@ export function CampaignInfoPanel({
             </button>
           ) : null}
 
-          <footer className="flex items-center justify-between gap-3 pt-2">
+          <footer className="flex items-center justify-between gap-3 pt-2 pr-[17px]">
             <button
               type="button"
               onClick={onClose}
@@ -371,7 +371,7 @@ function PlayerRow({
   const handle = username ?? 'unknown agent';
 
   return (
-    <li className="grid grid-cols-[1fr_1fr_auto] items-center gap-3 px-4 py-3 border-b border-green-dim/40 last:border-b-0">
+    <li className="grid grid-cols-3 items-center gap-3 px-4 py-3 border-b border-green-dim/40 last:border-b-0">
       <div className="flex items-center gap-3 min-w-0">
         <StatusDot variant={badge} />
         <span className="font-ui text-[12px] tracking-[0.06em] text-paper truncate">
