@@ -12,7 +12,7 @@ type WorkspaceNavItem = {
   badgeKind?: 'notifications';
   /**
    * Optional override for the "active" predicate. When omitted, the NavLink's
-   * own `isActive` (exact match) is used. The Campaigns item uses this to stay
+   * own `isActive` (exact match) is used. The Dossier item uses this to stay
    * highlighted across the campaign-management subtree (`/campaigns/:id/manage/...`),
    * because management is a workspace-layer concern even when the URL sits
    * under `/campaigns/`.
@@ -23,7 +23,7 @@ type WorkspaceNavItem = {
 const WORKSPACE_NAV: WorkspaceNavItem[] = [
   {
     to: '/',
-    label: 'CAMPAIGNS',
+    label: 'DOSSIER',
     // Active on `/` itself plus any `/campaigns/...` route — the
     // workspace-layer campaign management screens (DEL-43) live there too.
     // The campaign shell uses AppLayout (no WorkspaceSidebar), so this
@@ -31,7 +31,6 @@ const WORKSPACE_NAV: WorkspaceNavItem[] = [
     matchPathname: (pathname) =>
       pathname === '/' || pathname === '/campaigns' || pathname.startsWith('/campaigns/'),
   },
-  { to: '/agents', label: 'AGENTS' },
   { to: '/notifications', label: 'NOTIFICATIONS', badgeKind: 'notifications' },
   { to: '/browse', label: 'BROWSE' },
 ];

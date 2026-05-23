@@ -26,7 +26,7 @@ export type PlayerCharacterStatus = 'active' | 'retired' | 'deceased';
 /**
  * Campaign-attachment state. Mirrors `campaign_id is not null`: the
  * schema enforces the iff invariant via a check constraint. System-
- * managed by the join / leave / kick flows — the `/agents` create flow
+ * managed by the join / leave / kick flows — the agent-roster create flow
  * starts a PC at `'unassigned'`, the assign-to-campaign dialog promotes
  * it to `'assigned'`, and PC→NPC migration (DEL-63) walks it back.
  */
@@ -58,7 +58,7 @@ export type PlayerCharacter = {
 };
 
 /**
- * Roster-screen view of a PC. The `/agents` page groups by `campaign_id is
+ * Roster-screen view of a PC. The roster panel groups by `campaign_id is
  * null` vs not, and renders the campaign name on attached rows — so we
  * embed the campaign's `name` (only when attached) via a PostgREST join.
  * `null` when the PC is unassigned.

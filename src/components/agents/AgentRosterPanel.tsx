@@ -3,15 +3,11 @@
  *
  * Renders the caller's player-character roster — `Unassigned · N` and
  * `In Campaigns · N` sections grouped on `campaign_status` — with a
- * `+ New Agent` header affordance. Used in two places:
- *
- *   - Landing page right column, paired with the Campaigns column to its
- *     left (visually divided in `CampaignsLandingPage`).
- *   - Standalone `/agents` page, full-width.
- *
- * Both surfaces share the same `AGENTS` heading + `Your dossier of
- * player characters` subtitle so the landing-page pair reads as two
- * halves of one desk (DEL-66 visual polish).
+ * `+ New Agent` header affordance. Lives in the landing page's right
+ * column, paired with the Campaigns column to its left (visually divided
+ * in `CampaignsLandingPage`). The landing pair reads as two halves of
+ * one desk under the `AGENTS` heading + `Your dossier of player
+ * characters` subtitle (DEL-66 visual polish).
  *
  * Per-row affordances follow the post-DEL-32 design review (rows 6/7 of
  * `AgentPanel.png`):

@@ -7,9 +7,8 @@
  * wireframe (dashed-border card, "Create campaign" CTA).
  *
  * Right column (DEL-65): the shared `<AgentRosterPanel>` rendering the
- * caller's full PC roster. Same component is reused at `/agents` in the
- * page-width variant. The earlier active-agent dropdown + "Open in roster"
- * placeholder is gone — the panel hosts the roster directly.
+ * caller's full PC roster. The earlier active-agent dropdown + "Open in
+ * roster" placeholder is gone — the panel hosts the roster directly.
  *
  * Data:
  *   - `listMyMemberships()` returns membership rows joined with campaign

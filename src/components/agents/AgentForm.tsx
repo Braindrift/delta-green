@@ -6,7 +6,8 @@
  * receives the persisted PC via `onSubmitted`. This shape lets the form
  * live unchanged inside two surfaces:
  *
- *   1. The `/agents` page modals (create + edit), wrapped in `ModalShell`.
+ *   1. The landing-page agent-roster modals (create + edit), wrapped in
+ *      `ModalShell`.
  *   2. The DEL-46 accept-invite PC-picker, dropped in inline alongside the
  *      "use an existing PC" list. The picker reuses `mode: 'create'` and
  *      navigates the user into the join flow with the freshly created PC.
