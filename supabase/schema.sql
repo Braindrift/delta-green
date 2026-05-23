@@ -465,6 +465,7 @@ begin
     )
   from campaign_members cm
   where cm.campaign_id = new.id
+    and cm.status = 'active'
     and cm.user_id <> coalesce(auth.uid(), '00000000-0000-0000-0000-000000000000'::uuid);
 
   return new;
