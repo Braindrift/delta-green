@@ -11,6 +11,7 @@
 export { getInvitationByToken, getInvitationForAccept } from './queries';
 
 export {
+  acceptInvitation,
   acceptInvitationWithPc,
   claimInvitationByToken,
   createStrangerInvitation,

@@ -1,66 +1,37 @@
 /**
- * In-app accept-invite flow (DEL-46) — replaces the placeholder shipped
- * with DEL-45.
+ * In-app accept-invite flow — magic-link landing surface (DEL-81 rework).
  *
- * Sits inside the workspace shell at `/invitations/:invitationId`. Two
- * entry paths land here, both already covered by upstream tickets:
+ * Post-DEL-81 the Notifications inbox opens invitations as a modal in
+ * place (`AcceptInviteModal`). This page survives as the deep-link
+ * fallback the magic-link path lands on: `InviteTokenPage` claims the
+ * token then `replace`s to `/invitations/:invitationId`, so something
+ * has to render here.
  *
- *   1. Notifications inbox deep-link (DEL-50, lands later — the route is
- *      ready). The inbox can pass `location.state.from = '/notifications'`
- *      so a decline routes back to the inbox.
- *   2. `InviteTokenPage` redirects here after `claim_invitation_by_token`
- *      succeeds. The claim normalises the row into an existing-user
- *      invite (`invitee_user_id = auth.uid()`), so this page treats both
- *      paths identically.
- *
- * Flow shape:
- *
- *   - Load the invitation + campaign + inviter + seat count in one go
- *     (`getInvitationForAccept`). If the row is non-pending, expired,
- *     or its campaign is soft-deleted, route into the right
- *     `InviteGoneScreen` variant at render time. Otherwise render the
- *     PC picker.
- *   - PC picker reads from `listJoinablePlayerCharacters` (owner +
- *     unassigned + not deleted + no campaign). Inline "Create new agent"
- *     button mounts `AgentForm` inside `ModalShell`; the newly created
- *     PC is prepended to the list and auto-selected — matches the
- *     "drops in alongside the existing picker" contract from DEL-51's
- *     AgentForm docstring.
- *   - Accept calls `accept_invitation_with_pc` (RPC). The RPC's
- *     `(campaign_id, status)` row is the discriminator. On success:
- *     navigate to `/campaigns/:id/operations`. On `gone`/`full`/`deleted`:
- *     swap into the matching `InviteGoneScreen` without a refetch.
- *   - Decline calls `declineInvitation` (direct UPDATE under
- *     invitee-update RLS) and routes to `location.state.from ?? '/'`.
- *
- * The seat counter and `expires_at` are advisory — the RPC does the
- * authoritative checks at accept time. Showing them up front avoids
- * surprises (the user sees `Seats 5 / 6` and the expiry pill before
- * they pick a PC).
+ * Shape matches the modal: campaign summary + Handler's message + Accept
+ * / Decline. There is no agent picker. Accepting calls the no-PC
+ * `accept_invitation` RPC and routes the user to `/notifications`
+ * (was `/campaigns/:id/operations`); they pick an agent later via the
+ * Agent Panel ASSIGN flow.
  */
 
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
-import { AgentForm } from '@/components/agents/AgentForm';
 import { InviteGoneScreen, type InviteGoneVariant } from '@/components/invite/InviteGoneScreen';
-import { ModalShell } from '@/components/common/ModalShell';
 import { useToast } from '@/contexts/ToastContext';
 import {
-  acceptInvitationWithPc,
+  acceptInvitation,
   declineInvitation,
   getInvitationForAccept,
 } from '@/lib/invitations';
-import { listJoinablePlayerCharacters } from '@/lib/player-characters';
 import type { InvitationAcceptView } from '@/types/members';
-import type { PlayerCharacter } from '@/types/player-characters';
 
 type LoadState =
   | { kind: 'loading' }
   | { kind: 'error' }
   | { kind: 'not_found' }
   | { kind: 'gone'; variant: InviteGoneVariant; campaignName: string | null }
-  | { kind: 'ready'; invitation: InvitationAcceptView; pcs: PlayerCharacter[] };
+  | { kind: 'ready'; invitation: InvitationAcceptView };
 
 type SubmitState =
   | { kind: 'idle' }
@@ -76,12 +47,11 @@ export function InviteAcceptPage() {
   const location = useLocation();
   const { showToast } = useToast();
 
-  const fallback = ((location.state as LocationState)?.from ?? '/') || '/';
+  const fallback =
+    ((location.state as LocationState)?.from ?? '/notifications') || '/notifications';
 
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
-  const [selectedPcId, setSelectedPcId] = useState<string | null>(null);
   const [submit, setSubmit] = useState<SubmitState>({ kind: 'idle' });
-  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const load = useCallback(async () => {
     if (!invitationId) {
@@ -107,13 +77,7 @@ export function InviteAcceptPage() {
       return;
     }
 
-    const pcResult = await listJoinablePlayerCharacters();
-    if (!pcResult.ok) {
-      setState({ kind: 'error' });
-      return;
-    }
-
-    setState({ kind: 'ready', invitation: inv, pcs: pcResult.data });
+    setState({ kind: 'ready', invitation: inv });
   }, [invitationId]);
 
   useEffect(() => {
@@ -124,10 +88,9 @@ export function InviteAcceptPage() {
     if (state.kind !== 'ready' || submit.kind === 'accepting' || submit.kind === 'declining') {
       return;
     }
-    if (!selectedPcId) return;
 
     setSubmit({ kind: 'accepting' });
-    const result = await acceptInvitationWithPc(state.invitation.invitation_id, selectedPcId);
+    const result = await acceptInvitation(state.invitation.invitation_id);
 
     if (!result.ok) {
       setSubmit({
@@ -139,16 +102,13 @@ export function InviteAcceptPage() {
 
     if (result.data.status === 'accepted') {
       showToast('success', 'Welcome to the operation.');
-      navigate(`/campaigns/${result.data.campaign_id}/operations`, { replace: true });
+      navigate('/notifications', { replace: true });
       return;
     }
 
-    // Non-accept terminal status. `'full'` / `'deleted'` map directly to
-    // `InviteGoneScreen` variants — flip the page without a refetch.
-    // `'gone'` is the catch-all (invitation moved out of pending under us,
-    // PC no longer eligible, etc.) — refetch so the page picks the right
-    // variant (`revoked` / `expired` / `accepted` / `declined`) from the
-    // current invitation row.
+    // Non-accept terminal status — swap to the matching gone variant.
+    // `'gone'` is the catch-all (status flipped under us); refetch so the
+    // page picks the right variant from the current row.
     setSubmit({ kind: 'idle' });
     if (result.data.status === 'gone') {
       void load();
@@ -207,7 +167,7 @@ export function InviteAcceptPage() {
         tone="error"
         title="Unknown invitation"
         body="This invitation could not be found. It may have been deleted by the Handler."
-        action={{ label: 'Back to campaigns', onClick: () => navigate('/', { replace: true }) }}
+        action={{ label: 'Back to notifications', onClick: () => navigate('/notifications', { replace: true }) }}
       />
     );
   }
@@ -215,7 +175,7 @@ export function InviteAcceptPage() {
     return <InviteGoneScreen variant={state.variant} campaignName={state.campaignName} />;
   }
 
-  const { invitation, pcs } = state;
+  const { invitation } = state;
   const seatsFull = invitation.active_member_count >= invitation.campaign_max_agents;
   const busy = submit.kind === 'accepting' || submit.kind === 'declining';
 
@@ -226,7 +186,7 @@ export function InviteAcceptPage() {
           Invitation received
         </h1>
         <p className="font-ui text-[11px] tracking-[0.14em] text-green-mid mt-1 uppercase">
-          Confirm assignment to operation
+          Accept or decline
         </p>
       </header>
 
@@ -234,14 +194,6 @@ export function InviteAcceptPage() {
         <CampaignSummary invitation={invitation} seatsFull={seatsFull} />
 
         {invitation.message ? <MessageCard message={invitation.message} /> : null}
-
-        <PcPickerSection
-          pcs={pcs}
-          selectedPcId={selectedPcId}
-          onSelect={setSelectedPcId}
-          onOpenCreate={() => setShowCreateModal(true)}
-          disabled={busy}
-        />
 
         {submit.kind === 'error' ? (
           <div
@@ -276,7 +228,7 @@ export function InviteAcceptPage() {
           <button
             type="button"
             onClick={handleAccept}
-            disabled={busy || !selectedPcId}
+            disabled={busy}
             className={acceptButtonClass}
           >
             {submit.kind === 'accepting' ? (
@@ -290,30 +242,6 @@ export function InviteAcceptPage() {
           </button>
         </div>
       </div>
-
-      {showCreateModal ? (
-        <ModalShell
-          title="New agent"
-          subtitle="File a new player character"
-          onClose={() => setShowCreateModal(false)}
-          width={520}
-        >
-          <AgentForm
-            mode={{ kind: 'create' }}
-            onCancel={() => setShowCreateModal(false)}
-            onSubmitted={(pc) => {
-              setShowCreateModal(false);
-              setState((prev) =>
-                prev.kind === 'ready'
-                  ? { ...prev, pcs: [pc, ...prev.pcs] }
-                  : prev,
-              );
-              setSelectedPcId(pc.id);
-              showToast('success', 'Agent created.');
-            }}
-          />
-        </ModalShell>
-      ) : null}
     </section>
   );
 }
@@ -368,102 +296,6 @@ function MessageCard({ message }: { message: string }) {
       </div>
       <div className="font-body text-[13px] text-paper-worn whitespace-pre-wrap leading-relaxed">
         {message}
-      </div>
-    </div>
-  );
-}
-
-function PcPickerSection({
-  pcs,
-  selectedPcId,
-  onSelect,
-  onOpenCreate,
-  disabled,
-}: {
-  pcs: PlayerCharacter[];
-  selectedPcId: string | null;
-  onSelect: (id: string) => void;
-  onOpenCreate: () => void;
-  disabled: boolean;
-}) {
-  return (
-    <div>
-      <div className="flex items-end justify-between gap-3 mb-3">
-        <div>
-          <div className="font-display text-[13px] font-light tracking-[0.22em] uppercase text-paper-worn">
-            Choose an agent
-          </div>
-          <div className="font-ui text-[10px] tracking-[0.12em] uppercase text-green-mid mt-1">
-            Bring an unassigned agent into the operation
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={onOpenCreate}
-          disabled={disabled}
-          className={createPcButtonClass}
-        >
-          + Create new
-        </button>
-      </div>
-
-      <div className="border border-green-dim bg-desk-edge">
-        {pcs.length === 0 ? (
-          <div className="px-4 py-5 font-ui text-[11px] tracking-[0.12em] uppercase text-green-mid">
-            No unassigned agents available. Create one to continue.
-          </div>
-        ) : (
-          <ul role="radiogroup" aria-label="Select an agent">
-            {pcs.map((pc) => {
-              const selected = pc.id === selectedPcId;
-              return (
-                <li
-                  key={pc.id}
-                  className="border-b border-green-dim/40 last:border-b-0"
-                >
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    onClick={() => onSelect(pc.id)}
-                    disabled={disabled}
-                    className={[
-                      'w-full text-left px-4 py-3 flex items-center gap-3 transition-colors',
-                      selected
-                        ? 'bg-green-accent/[0.08]'
-                        : 'hover:bg-green-accent/[0.04]',
-                      'disabled:cursor-not-allowed disabled:opacity-60',
-                    ].join(' ')}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={[
-                        'inline-block w-[10px] h-[10px] flex-shrink-0',
-                        'border',
-                        selected
-                          ? 'border-green-bright bg-green-accent/60'
-                          : 'border-green-dim bg-transparent',
-                      ].join(' ')}
-                    />
-                    <span className="flex-1 min-w-0">
-                      <span
-                        className={[
-                          'font-ui text-[12px] tracking-[0.06em] truncate block',
-                          selected ? 'text-paper' : 'text-paper-worn',
-                        ].join(' ')}
-                      >
-                        {pc.name}
-                      </span>
-                      <span className="font-ui text-[10px] tracking-[0.14em] uppercase text-green-mid mt-[2px] truncate block">
-                        {pc.archetype ?? '—'}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
       </div>
     </div>
   );
@@ -540,8 +372,6 @@ function resolveGoneVariant(
   if (invitation.campaign_deleted_at) return 'deleted';
 
   if (invitation.status !== 'pending') {
-    // The four invite-row terminal statuses line up 1:1 with the
-    // matching `InviteGoneVariant`s.
     return invitation.status as InviteGoneVariant;
   }
 
@@ -550,10 +380,6 @@ function resolveGoneVariant(
   return null;
 }
 
-/**
- * Human-friendly relative expiry. Coarse — minute / hour / day buckets —
- * enough for an invitation that's days away from expiring.
- */
 function formatRelativeFuture(targetMs: number): string {
   const deltaMs = targetMs - Date.now();
   if (deltaMs <= 0) return 'soon';
@@ -588,12 +414,4 @@ const declineButtonClass = [
   'hover:bg-red-faded/[0.16] hover:shadow-[0_0_12px_rgba(170,80,80,0.18)]',
   'focus:outline-none focus:border-red-stamp',
   'disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:shadow-none',
-].join(' ');
-
-const createPcButtonClass = [
-  'font-ui text-[11px] tracking-[0.18em] uppercase px-3 py-[7px]',
-  'text-green-accent border border-green-mid bg-green-accent/[0.06]',
-  'transition-all duration-150 cursor-pointer',
-  'hover:bg-green-accent/[0.12] hover:border-green-bright',
-  'disabled:cursor-not-allowed disabled:opacity-60',
 ].join(' ');

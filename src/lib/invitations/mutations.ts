@@ -213,6 +213,49 @@ export async function acceptInvitationWithPc(
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Accept (in-app, no PC) — DEL-81                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Call the `accept_invitation` RPC (DEL-81). Same shape as
+ * `acceptInvitationWithPc` minus the PC argument — used by the
+ * notifications-modal accept flow where the user joins as an active
+ * `player` with no agent attached. Agent assignment happens later via
+ * the Agent Panel ASSIGN flow.
+ */
+export async function acceptInvitation(
+  invitationId: string,
+): Promise<Result<AcceptInvitationResult>> {
+  const { data, error } = await supabase.rpc('accept_invitation', {
+    p_invitation_id: invitationId,
+  });
+
+  if (error) return mapPostgrestError(error);
+
+  const rows = (data ?? []) as RawAcceptRow[];
+  if (rows.length === 0) {
+    return unknown(new Error('accept_invitation returned no rows'));
+  }
+
+  const row = rows[0];
+  if (!ACCEPT_STATUSES.has(row.status as AcceptInvitationResult['status'])) {
+    return unknown(new Error(`Unexpected accept status: ${row.status}`));
+  }
+
+  if (row.status === 'accepted') {
+    if (!row.campaign_id) {
+      return unknown(new Error('Accepted invitation returned null campaign_id'));
+    }
+    return ok({ status: 'accepted', campaign_id: row.campaign_id });
+  }
+
+  return ok({
+    status: row.status as 'gone' | 'deleted' | 'full',
+    campaign_id: null,
+  });
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Decline (in-app)                                                          */
 /* -------------------------------------------------------------------------- */
 
