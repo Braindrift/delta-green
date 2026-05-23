@@ -513,7 +513,7 @@ function StubOverlay({ kind, onBack }: { kind: StubKind; onBack: () => void }) {
 /* -------------------------------------------------------------------------- */
 
 const primaryButtonClass = [
-  'font-ui text-[11px] tracking-[0.22em] uppercase px-4 py-[9px]',
+  'font-ui text-[11px] tracking-[0.22em] uppercase px-4 py-[9px] min-w-[80px] text-center',
   'text-green-accent border border-green-mid bg-green-accent/[0.06]',
   'transition-all duration-150',
   'hover:bg-green-accent/[0.12] hover:border-green-bright',
@@ -528,7 +528,7 @@ const secondaryButtonClass = [
 ].join(' ');
 
 const rowButtonClass = [
-  'font-ui text-[10px] tracking-[0.22em] uppercase px-3 py-[6px] flex-shrink-0',
+  'font-ui text-[10px] tracking-[0.22em] uppercase px-3 py-[6px] flex-shrink-0 min-w-[80px] text-center',
   'text-green-accent border border-green-mid bg-green-accent/[0.06]',
   'transition-all duration-150',
   'hover:bg-green-accent/[0.12] hover:border-green-bright',
