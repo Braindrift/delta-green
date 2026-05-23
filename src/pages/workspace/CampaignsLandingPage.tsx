@@ -113,6 +113,18 @@ export function CampaignsLandingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // DOSSIER sidebar item carries `{ closeInfo: true }` in location.state.
+  // Clicking it while already on `/` doesn't unmount this page, so the only
+  // way to honour the BACK-equivalent close-on-click contract is to react to
+  // fresh navigations into this route that carry the signal.
+  useEffect(() => {
+    const state = location.state as { closeInfo?: boolean } | null;
+    if (state?.closeInfo) {
+      setPanelView({ kind: 'list' });
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.key, location.pathname, location.state, navigate]);
+
   const handleInfoRequest = useCallback(
     (
       campaignId: string,

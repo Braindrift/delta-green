@@ -18,6 +18,13 @@ type WorkspaceNavItem = {
    * under `/campaigns/`.
    */
   matchPathname?: (pathname: string) => boolean;
+  /**
+   * Optional `location.state` payload to attach on navigation. The Dossier
+   * item uses `{ closeInfo: true }` so `CampaignsLandingPage` collapses its
+   * info panel back to the list when the user clicks DOSSIER while already
+   * on `/` — mirroring the panel's BACK button.
+   */
+  state?: unknown;
 };
 
 const WORKSPACE_NAV: WorkspaceNavItem[] = [
@@ -30,6 +37,7 @@ const WORKSPACE_NAV: WorkspaceNavItem[] = [
     // predicate only fires on the workspace-rendered subset.
     matchPathname: (pathname) =>
       pathname === '/' || pathname === '/campaigns' || pathname.startsWith('/campaigns/'),
+    state: { closeInfo: true },
   },
   { to: '/notifications', label: 'NOTIFICATIONS', badgeKind: 'notifications' },
   { to: '/browse', label: 'BROWSE' },
@@ -50,6 +58,7 @@ export function WorkspaceSidebar() {
             <NavLink
               key={item.to}
               to={item.to}
+              state={item.state}
               end={item.to === '/' && item.matchPathname === undefined}
               className={({ isActive }) => {
                 const active = matched ?? isActive;
