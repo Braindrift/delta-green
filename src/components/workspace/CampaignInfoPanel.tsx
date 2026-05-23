@@ -262,25 +262,25 @@ function GameMasterSection({
   gm: CampaignMemberWithProfile | null;
 }) {
   return (
-    <section className="border border-green-dim bg-desk-edge px-4 py-3">
+    <section>
       <div className="font-ui text-[10px] tracking-[0.18em] uppercase text-green-mid">
         Game Master
       </div>
       {gm ? (
-        <div className="flex items-center gap-2 mt-[6px]">
+        <div className="flex items-center gap-3 mt-2">
           <span
             aria-hidden="true"
-            className="font-ui text-[14px] text-amber-dim"
+            className="font-ui text-[18px] text-amber-dim leading-none"
             title="Handler"
           >
             ♛
           </span>
-          <span className="font-ui text-[14px] text-paper truncate">
+          <span className="font-display text-[18px] font-light tracking-[0.08em] text-paper truncate">
             {gm.username ?? 'unknown handler'}
           </span>
         </div>
       ) : (
-        <div className="font-ui text-[12px] uppercase tracking-[0.12em] text-green-mid mt-[6px]">
+        <div className="font-ui text-[12px] uppercase tracking-[0.12em] text-green-mid mt-2">
           No handler assigned.
         </div>
       )}
