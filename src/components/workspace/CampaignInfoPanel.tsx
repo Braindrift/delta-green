@@ -263,24 +263,24 @@ function GameMasterSection({
 }) {
   return (
     <section>
-      <div className="font-ui text-[10px] tracking-[0.18em] uppercase text-green-mid">
+      <h2 className="font-display text-[13px] font-light tracking-[0.22em] uppercase text-paper-worn mb-3">
         Game Master
-      </div>
+      </h2>
       {gm ? (
-        <div className="flex items-center gap-3 mt-2">
+        <div className="flex items-center gap-3">
           <span
             aria-hidden="true"
-            className="font-ui text-[18px] text-amber-dim leading-none"
+            className="font-ui text-[14px] text-amber-dim leading-none"
             title="Handler"
           >
             ♛
           </span>
-          <span className="font-display text-[18px] font-light tracking-[0.08em] text-paper truncate">
+          <span className="font-ui text-[12px] tracking-[0.06em] text-paper truncate">
             {gm.username ?? 'unknown handler'}
           </span>
         </div>
       ) : (
-        <div className="font-ui text-[12px] uppercase tracking-[0.12em] text-green-mid mt-2">
+        <div className="font-ui text-[12px] uppercase tracking-[0.12em] text-green-mid">
           No handler assigned.
         </div>
       )}
