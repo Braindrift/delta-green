@@ -11,10 +11,10 @@
  * role from the membership row that opened the panel — we accept it as a
  * prop instead of re-deriving.
  *
- * Action buttons (MANAGE PLAYERS, EDIT, INVITE MORE PLAYERS, INFO,
- * ASSIGN) are all stubs in this ticket. Each opens an empty overlay with
- * a BACK button in the lower-left. Real bodies + wiring live in
- * follow-up tickets (see DEL-75 Out of Scope).
+ * Action buttons MANAGE PLAYERS, EDIT, INFO, and ASSIGN are stubs: each
+ * opens an empty overlay with a BACK button in the lower-left. Real bodies +
+ * wiring live in follow-up tickets (see DEL-75 Out of Scope). INVITE MORE
+ * PLAYERS is wired to `InviteModal` (DEL-77).
  *
  * Row visibility rules:
  *   - INFO appears on any accepted row whose member has a PC attached.

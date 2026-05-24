@@ -5,16 +5,15 @@
  * resolves each leaf to a number by fetching the campaign's records once
  * via `listRecords` and bucketing client-side.
  *
- * ## Current state — no campaign concept yet
+ * ## Campaign id source
  *
- * The records data layer (DEL-11) is keyed by `campaignId`, but DEL-14 ships
- * before the campaign picker (DEL-15-ish). Until that lands the hook is
- * passed `null` for the campaign id and returns a sentinel `null` for every
- * count — the sidebar renders the dash placeholder (`—`).
- *
- * When the campaign picker lands, the wiring at the `AppLayout` level
- * changes from `useRecordCounts(null)` to `useRecordCounts(currentCampaign.id)`
- * and the badges go live. The shape of the returned map is the same.
+ * The records data layer (DEL-11) is keyed by `campaignId`. Since the
+ * Phase 3.5 route-bound campaign system landed, `Sidebar.tsx` calls
+ * `useRecordCounts(campaign?.id ?? null, NAV_ITEMS)` with the campaign from
+ * the `/campaigns/:id/...` route. Outside a campaign route there is no id, so
+ * `null` is passed and the hook returns a sentinel `null` for every count —
+ * the sidebar renders the dash placeholder (`—`). The shape of the returned
+ * map is identical in both cases.
  *
  * ## Why not per-leaf queries
  *

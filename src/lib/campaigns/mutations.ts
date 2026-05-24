@@ -76,15 +76,6 @@ export async function createCampaign(input: CreateCampaignInput): Promise<Result
 }
 
 /**
- * Returns `ok(true)` if the authenticated user has no non-deleted campaign
- * with the given (trimmed) name, `ok(false)` if such a campaign exists.
- *
- * Scoped to the caller's owned campaigns per the DEL-42 spec — global
- * uniqueness is too aggressive. The query relies on the `campaigns: members
- * can read` RLS policy: the caller is always a member of campaigns they own
- * (the trigger ensures it), so RLS does not hide their own rows.
- */
-/**
  * Soft-delete a campaign (DEL-48). Routes through the `soft_delete_campaign`
  * RPC rather than a direct `update campaigns set deleted_at = now()`.
  *
@@ -158,6 +149,15 @@ export async function updateCampaign(
   return ok(data as Campaign);
 }
 
+/**
+ * Returns `ok(true)` if the authenticated user has no non-deleted campaign
+ * with the given (trimmed) name, `ok(false)` if such a campaign exists.
+ *
+ * Scoped to the caller's owned campaigns per the DEL-42 spec — global
+ * uniqueness is too aggressive. The query relies on the `campaigns: members
+ * can read` RLS policy: the caller is always a member of campaigns they own
+ * (the trigger ensures it), so RLS does not hide their own rows.
+ */
 export async function checkCampaignNameAvailable(name: string): Promise<Result<boolean>> {
   const { data: sessionData } = await supabase.auth.getSession();
   const userId = sessionData.session?.user.id;
