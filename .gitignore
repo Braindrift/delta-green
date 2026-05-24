@@ -39,3 +39,6 @@ tmp/
 
 # Documentation
 documentation
+
+# Local-only review docs (whole-repo review passes)
+reviews/
