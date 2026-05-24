@@ -15,7 +15,14 @@
 export type CampaignMemberRole = 'gm' | 'player';
 export type CampaignMemberStatus = 'active' | 'former';
 
-/** Raw `campaign_members` row. */
+/**
+ * Raw `campaign_members` row, slim — only the columns the Members screen
+ * reads. The live table also carries a `plan` column the UI doesn't surface,
+ * so this stays a hand-picked subset rather than the full generated row; the
+ * `AppDatabase` override (`src/types/database-overrides.ts`) narrows `role`
+ * and `status` from the generated `string` to these literal unions so the
+ * typed client returns this shape directly.
+ */
 export type CampaignMember = {
   id: string;
   campaign_id: string;

@@ -72,7 +72,7 @@ export async function createCampaign(input: CreateCampaignInput): Promise<Result
   const { data, error } = await supabase.from('campaigns').insert(row).select('*').single();
 
   if (error) return mapPostgrestError(error);
-  return ok(data as Campaign);
+  return ok(data);
 }
 
 /**
@@ -146,7 +146,7 @@ export async function updateCampaign(
     .single();
 
   if (error) return mapPostgrestError(error);
-  return ok(data as Campaign);
+  return ok(data);
 }
 
 /**

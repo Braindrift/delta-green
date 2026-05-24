@@ -12,23 +12,16 @@
  * field is only ever `null` on the client — it's exposed here for parity with
  * the table and for the eventual Workspace-layer recovery flow (if any).
  *
- * NOTE: This file is the single source of truth for the Campaign row type.
- * If new columns are added to `campaigns`, update this type — `CampaignContext`
- * and the queries layer will pick the change up automatically through the
- * `Campaign` import.
+ * NOTE: The row shape is the generated `campaigns` table type (DEL-92), so new
+ * columns flow in automatically the next time `src/types/database.ts` is
+ * regenerated — `CampaignContext` and the queries layer pick the change up
+ * through the `Campaign` import. The `campaigns` table has no enum/JSONB
+ * columns, so no overrides are needed here.
  */
 
-export type Campaign = {
-  id: string;
-  owner_id: string;
-  name: string;
-  codename: string | null;
-  description: string | null;
-  max_agents: number;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
-};
+import type { Tables } from '@/types/database';
+
+export type Campaign = Tables<'campaigns'>;
 
 /**
  * Membership-scoped view of a campaign, used by the workspace landing page.

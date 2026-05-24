@@ -80,7 +80,7 @@ export async function createPlayerCharacter(
     .single();
 
   if (error) return mapPostgrestError(error);
-  return ok(inserted as PlayerCharacter);
+  return ok(inserted);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -118,7 +118,7 @@ export async function updatePlayerCharacter(
       .eq('id', id)
       .single();
     if (error) return mapPostgrestError(error);
-    return ok(data as PlayerCharacter);
+    return ok(data);
   }
 
   // Read current `data` for the JSONB merge. We only need this if the patch
@@ -132,8 +132,7 @@ export async function updatePlayerCharacter(
       .single();
     if (readErr) return mapPostgrestError(readErr);
 
-    const currentData = ((current as { data: PlayerCharacterData | null } | null)?.data ??
-      {}) as PlayerCharacterData;
+    const currentData = current?.data ?? {};
     const trimmed = input.notes?.trim();
     nextData = { ...currentData };
     if (trimmed) {
@@ -143,7 +142,7 @@ export async function updatePlayerCharacter(
     }
   }
 
-  const patch: Record<string, unknown> = {};
+  const patch: { name?: string; archetype?: string | null; data?: PlayerCharacterData } = {};
   if (hasName) patch.name = input.name;
   if (hasArchetype) {
     const trimmed = input.archetype?.trim();
@@ -159,7 +158,7 @@ export async function updatePlayerCharacter(
     .single();
 
   if (error) return mapPostgrestError(error);
-  return ok(data as PlayerCharacter);
+  return ok(data);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -192,7 +191,7 @@ export async function assignPlayerCharacterToCampaign(
     .single();
 
   if (error) return mapPostgrestError(error);
-  return ok(data as PlayerCharacter);
+  return ok(data);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -215,7 +214,7 @@ export async function retirePlayerCharacter(
     .single();
 
   if (error) return mapPostgrestError(error);
-  return ok(data as PlayerCharacter);
+  return ok(data);
 }
 
 /* -------------------------------------------------------------------------- */

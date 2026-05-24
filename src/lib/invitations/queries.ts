@@ -86,20 +86,6 @@ function isKnownStatus(value: string): value is CampaignInvitationStatus {
 /*  In-app accept-screen view                                                 */
 /* -------------------------------------------------------------------------- */
 
-type RawInvitationAcceptRow = {
-  id: string;
-  campaign_id: string;
-  invitee_user_id: string | null;
-  status: string;
-  expires_at: string;
-  message: string | null;
-  invited_by: string;
-  campaign:
-    | { id: string; name: string; max_agents: number; deleted_at: string | null }
-    | Array<{ id: string; name: string; max_agents: number; deleted_at: string | null }>
-    | null;
-};
-
 /**
  * Fetch the invitation + its campaign for the in-app accept screen
  * (DEL-46). Returns `not_found` when the row doesn't exist or RLS hides
@@ -137,12 +123,14 @@ export async function getInvitationForAccept(
   }
   if (!data) return notFound();
 
-  const row = data as unknown as RawInvitationAcceptRow;
-  const campaign = Array.isArray(row.campaign) ? row.campaign[0] ?? null : row.campaign;
+  // The typed client infers the `!inner` campaign embed; normalise the
+  // object-or-one-element-array shape PostgREST can return for a to-one
+  // relation before reading the campaign fields.
+  const campaign = Array.isArray(data.campaign) ? data.campaign[0] ?? null : data.campaign;
   if (!campaign) return notFound();
 
-  if (!isKnownStatus(row.status)) {
-    return unknown(new Error(`Unknown invitation status: ${row.status}`));
+  if (!isKnownStatus(data.status)) {
+    return unknown(new Error(`Unknown invitation status: ${data.status}`));
   }
 
   // Inviter username + active member count fan-out. Both are independent
@@ -153,7 +141,7 @@ export async function getInvitationForAccept(
     supabase
       .from('user_profiles')
       .select('username')
-      .eq('user_id', row.invited_by)
+      .eq('user_id', data.invited_by)
       .maybeSingle(),
     supabase
       .from('campaign_members')
@@ -165,20 +153,19 @@ export async function getInvitationForAccept(
   if (profileResult.error) return mapPostgrestError(profileResult.error);
   if (countResult.error) return mapPostgrestError(countResult.error);
 
-  const inviterUsername =
-    (profileResult.data as { username: string } | null)?.username ?? null;
+  const inviterUsername = profileResult.data?.username ?? null;
 
   return ok({
-    invitation_id: row.id,
-    campaign_id: row.campaign_id,
+    invitation_id: data.id,
+    campaign_id: data.campaign_id,
     campaign_name: campaign.name,
     campaign_max_agents: campaign.max_agents,
     campaign_deleted_at: campaign.deleted_at,
     inviter_username: inviterUsername,
-    status: row.status,
-    expires_at: row.expires_at,
-    message: row.message,
-    invitee_user_id: row.invitee_user_id,
+    status: data.status,
+    expires_at: data.expires_at,
+    message: data.message,
+    invitee_user_id: data.invitee_user_id,
     active_member_count: countResult.count ?? 0,
   });
 }
