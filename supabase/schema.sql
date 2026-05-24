@@ -42,7 +42,8 @@
 
 -- Auto-update updated_at on row change
 create or replace function handle_updated_at()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql
+set search_path = public as $$
 begin
   new.updated_at = now();
   return new;
@@ -420,7 +421,8 @@ alter table campaign_transfers   enable row level security;
 -- The `status = 'active'` filter is the load-bearing soft-leave cut-off:
 -- every helper-routed read policy inherits it. (DEL-36)
 create or replace function is_campaign_member(p_campaign_id uuid)
-returns boolean language sql security definer stable as $$
+returns boolean language sql security definer stable
+set search_path = public, auth as $$
   select exists (
     select 1 from campaign_members
     where campaign_id = p_campaign_id
@@ -431,7 +433,8 @@ $$;
 
 -- Returns true if the current user is the ACTIVE GM of the campaign.
 create or replace function is_campaign_gm(p_campaign_id uuid)
-returns boolean language sql security definer stable as $$
+returns boolean language sql security definer stable
+set search_path = public, auth as $$
   select exists (
     select 1 from campaign_members
     where campaign_id = p_campaign_id
@@ -443,7 +446,8 @@ $$;
 
 -- Auto-insert the campaign creator as GM.
 create or replace function handle_campaign_owner_member()
-returns trigger language plpgsql security definer as $$
+returns trigger language plpgsql security definer
+set search_path = public, auth as $$
 begin
   insert into campaign_members (campaign_id, user_id, role)
   values (new.id, new.owner_id, 'gm');
@@ -455,7 +459,8 @@ $$;
 -- user invites leave `token` null, enforcing the "tokens only on stranger
 -- invites" rule at the DB rather than per insert path.
 create or replace function set_invitation_token()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql
+set search_path = public as $$
 begin
   if new.invitee_email is not null then
     -- 24 random bytes → 48 hex chars → 192 bits of entropy. Plenty for a
@@ -946,7 +951,8 @@ create policy "campaigns: authenticated can create"
 
 create policy "campaigns: gm can update"
   on campaigns for update
-  using (is_campaign_gm(id));
+  using (is_campaign_gm(id))
+  with check (is_campaign_gm(id));
 
 -- --- campaign_members ----------------------------------------
 -- SELECT split in two: active members read member rows generally; the
@@ -969,7 +975,8 @@ create policy "campaign_members: gm can insert"
 
 create policy "campaign_members: gm can update"
   on campaign_members for update
-  using (is_campaign_gm(campaign_id));
+  using (is_campaign_gm(campaign_id))
+  with check (is_campaign_gm(campaign_id));
 
 -- --- records -------------------------------------------------
 -- Consolidated SELECT (DEL-87, S4): GMs see all non-deleted records in their
@@ -997,7 +1004,8 @@ create policy "records: gm can insert"
 
 create policy "records: gm can update"
   on records for update
-  using (is_campaign_gm(campaign_id));
+  using (is_campaign_gm(campaign_id))
+  with check (is_campaign_gm(campaign_id));
 
 -- --- record_visibility ---------------------------------------
 -- Consolidated SELECT (DEL-87, S4): GMs read all visibility rows for records
@@ -1030,6 +1038,13 @@ create policy "record_visibility: gm can insert"
 create policy "record_visibility: gm can update"
   on record_visibility for update
   using (
+    exists (
+      select 1 from records r
+      where r.id = record_visibility.record_id
+        and is_campaign_gm(r.campaign_id)
+    )
+  )
+  with check (
     exists (
       select 1 from records r
       where r.id = record_visibility.record_id
@@ -1071,7 +1086,8 @@ create policy "sessions: gm can insert"
 
 create policy "sessions: gm can update"
   on sessions for update
-  using (is_campaign_gm(campaign_id));
+  using (is_campaign_gm(campaign_id))
+  with check (is_campaign_gm(campaign_id));
 
 -- --- player_characters ---------------------------------------
 -- Owner has full CRUD. Campaign members (incl. Handler) are read-only on
