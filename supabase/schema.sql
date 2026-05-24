@@ -79,6 +79,9 @@ create table campaigns (
   deleted_at  timestamptz
 );
 
+-- Covers the campaigns.owner_id FK (surfaces in the workspace landing query).
+create index campaigns_owner_id_idx on campaigns(owner_id);
+
 -- --- campaign_members ----------------------------------------
 -- `status` + `left_at` model soft-leave (player leaves) and Handler-kick
 -- (player removed) without losing the historical membership row. The
@@ -97,10 +100,15 @@ create table campaign_members (
   unique (campaign_id, user_id)
 );
 
--- Full-coverage index: serves the unique (campaign_id, user_id) dedup and
--- the Handler's "all members incl. former" reads.
-create index campaign_members_campaign_user_idx
-  on campaign_members(campaign_id, user_id);
+-- (campaign_id, user_id) reads — including the Handler's "all members incl.
+-- former" surfaces — are served by the unique-constraint backing index
+-- campaign_members_campaign_id_user_id_key. No separate composite index needed.
+
+-- Covers the campaign_members.user_id FK ("campaigns I'm in" on the workspace
+-- landing page). The composite (campaign_id, user_id) index can't serve a
+-- leading-column-less WHERE user_id = ? lookup.
+create index campaign_members_user_id_idx
+  on campaign_members(user_id);
 
 -- Partial index backing the helper hot path (active membership lookups).
 create index campaign_members_active_campaign_user_idx
@@ -129,7 +137,8 @@ create table records (
   ))
 );
 
-create index records_campaign_id_idx on records(campaign_id);
+-- records_campaign_type_idx (campaign_id, record_type) also serves bare
+-- campaign_id lookups via its leading column, so no single-column index needed.
 create index records_campaign_type_idx on records(campaign_id, record_type);
 create index records_deleted_at_idx on records(deleted_at) where deleted_at is null;
 create index records_campaign_date_encountered_idx
@@ -276,6 +285,9 @@ create index campaign_invitations_invitee_user_id_idx
   on campaign_invitations(invitee_user_id);
 create index campaign_invitations_invitee_email_idx
   on campaign_invitations(invitee_email);
+-- Covers the campaign_invitations.invited_by FK (cold — invite-history surfaces).
+create index campaign_invitations_invited_by_idx
+  on campaign_invitations(invited_by);
 
 -- Partial uniques on (campaign, target) where status = 'pending'.
 create unique index campaign_invitations_pending_user_uidx
