@@ -163,7 +163,15 @@ export async function updateRecord<T extends RecordType>(
 
   // Build the column-level patch. Only include fields the caller actually
   // specified — undefined keys in the patch must not become `null` writes.
-  const update: Record<string, unknown> = {};
+  // `data` / `visibility_overrides` use the loosened write types from
+  // `AppDatabase` (the records Row stays on `Json` — see database-overrides).
+  const update: {
+    name?: string;
+    tags?: string[];
+    date_encountered?: string | null;
+    visibility_overrides?: VisibilityOverrides;
+    data?: RecordDataMap[T];
+  } = {};
   if (patch.name !== undefined) update.name = patch.name;
   if (patch.tags !== undefined) update.tags = patch.tags;
   if (patch.date_encountered !== undefined) {

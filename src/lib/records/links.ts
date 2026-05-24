@@ -106,12 +106,12 @@ export async function getLinkedRecords(
   const [forwardResult, reverseResult] = await Promise.all([
     supabase
       .from('linked_records')
-      .select('linked:record_id_b(*)')
+      .select('linked:records!linked_records_record_id_b_fkey(*)')
       .eq('campaign_id', campaignId)
       .eq('record_id_a', id),
     supabase
       .from('linked_records')
-      .select('linked:record_id_a(*)')
+      .select('linked:records!linked_records_record_id_a_fkey(*)')
       .eq('campaign_id', campaignId)
       .eq('record_id_b', id),
   ]);
@@ -132,6 +132,11 @@ export async function getLinkedRecords(
       return Array.isArray(r.linked) ? r.linked : [r.linked];
     });
 
+  // `linked_records` has two FKs into `records` (record_id_a / record_id_b), so
+  // the embed is disambiguated by the FK-constraint-name hint above — that lets
+  // the typed client resolve `linked` to a `records` row. The cast only narrows
+  // the generated row (`data: Json`) to our `AnyRecord` union, the same bridge
+  // the rest of the records read path uses.
   const all = [...flatten(forwardRows as Embedded[]), ...flatten(reverseRows as Embedded[])];
 
   // De-dupe by id. With the unique-pair index in place this is defensive,

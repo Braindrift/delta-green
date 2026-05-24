@@ -54,17 +54,11 @@ export async function listMyPlayerCharacters(): Promise<
 
   if (error) return mapPostgrestError(error);
 
-  // PostgREST returns the embed as a single object on a to-one relation,
-  // but the generated TS types think it might be an array — narrow at the
-  // boundary so consumers see a clean `{ id, name } | null` value.
-  const rows = (data ?? []) as Array<
-    Omit<PlayerCharacterWithCampaign, 'campaign'> & {
-      campaign: { id: string; name: string } | { id: string; name: string }[] | null;
-    }
-  >;
-
+  // The typed client infers the campaign embed; normalise the
+  // object-or-one-element-array shape PostgREST can return for a to-one
+  // relation so consumers see a clean `{ id, name } | null` value.
   return ok(
-    rows.map((row) => ({
+    (data ?? []).map((row) => ({
       ...row,
       campaign: Array.isArray(row.campaign) ? row.campaign[0] ?? null : row.campaign,
     })),
@@ -104,7 +98,7 @@ export async function listJoinablePlayerCharacters(): Promise<
     .order('name', { ascending: true });
 
   if (error) return mapPostgrestError(error);
-  return ok((data ?? []) as PlayerCharacter[]);
+  return ok(data ?? []);
 }
 
 /**
@@ -129,7 +123,7 @@ export async function listCampaignPcs(
     .order('name', { ascending: true });
 
   if (error) return mapPostgrestError(error);
-  return ok((data ?? []) as { owner_id: string; name: string }[]);
+  return ok(data ?? []);
 }
 
 /**
@@ -153,5 +147,5 @@ export async function getPlayerCharacterById(
     return mapPostgrestError(error);
   }
   if (!data) return notFound();
-  return ok(data as PlayerCharacter);
+  return ok(data);
 }

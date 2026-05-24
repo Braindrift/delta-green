@@ -19,10 +19,8 @@
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError, ok, unknown, type Result } from '@/lib/records/errors';
 import type {
-  CampaignMember,
   CampaignMemberRole,
   CampaignMemberWithProfile,
-  CampaignInvitation,
   PendingInvitationWithProfile,
   UserProfileSummary,
 } from '@/types/members';
@@ -57,7 +55,7 @@ export async function listCampaignMembers(
 
   if (error) return mapPostgrestError(error);
 
-  const members = (data ?? []) as CampaignMember[];
+  const members = data ?? [];
   if (members.length === 0) return ok([]);
 
   const profiles = await listUserProfilesByIds(members.map((m) => m.user_id));
@@ -151,7 +149,7 @@ export async function listPendingInvitations(
 
   if (error) return mapPostgrestError(error);
 
-  const invitations = (data ?? []) as CampaignInvitation[];
+  const invitations = data ?? [];
   if (invitations.length === 0) return ok([]);
 
   // Only the existing-user invites need a profile lookup; stranger
@@ -215,11 +213,10 @@ export async function searchUsersByUsername(
 
   if (error) return mapPostgrestError(error);
 
-  // PostgREST returns `username` as a string-like; cast to plain string
-  // for the consumer surface. The `citext` round-trip is invisible to
-  // the client.
+  // The `citext` `username` column round-trips as a plain string on the
+  // client; the typed select already reflects that.
   return ok(
-    ((data ?? []) as Array<{ user_id: string; username: string }>).map((p) => ({
+    (data ?? []).map((p) => ({
       user_id: p.user_id,
       username: p.username,
     })),
@@ -284,7 +281,7 @@ async function listUserProfilesByIds(
   if (error) return mapPostgrestError(error);
 
   const map: Record<string, string> = {};
-  for (const row of (data ?? []) as Array<{ user_id: string; username: string }>) {
+  for (const row of data ?? []) {
     map[row.user_id] = row.username;
   }
   return ok(map);

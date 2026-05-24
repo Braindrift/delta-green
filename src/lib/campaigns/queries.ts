@@ -54,7 +54,7 @@ export async function getCampaignById(id: string): Promise<Result<Campaign>> {
   }
 
   if (!data) return notFound();
-  return ok(data as Campaign);
+  return ok(data);
 }
 
 /**
@@ -71,7 +71,7 @@ export async function listCampaigns(): Promise<Result<Campaign[]>> {
     .order('created_at');
 
   if (error) return mapPostgrestError(error);
-  return ok((data ?? []) as Campaign[]);
+  return ok(data ?? []);
 }
 
 /**
@@ -114,15 +114,11 @@ export async function listMyMemberships(): Promise<Result<CampaignMembership[]>>
 
   if (error) return mapPostgrestError(error);
 
-  // PostgREST returns the joined campaign as a single object on `!inner`,
-  // but the generated TS types think it might be an array — guard at the
-  // boundary so consumers see a clean `Campaign` value.
-  const rows = (data ?? []) as Array<{
-    role: 'gm' | 'player';
-    campaign: Campaign | Campaign[];
-  }>;
-
-  const memberships: CampaignMembership[] = rows
+  // The typed client infers the `!inner` campaign embed; PostgREST may still
+  // hand back a single object or a one-element array depending on how it
+  // resolves the to-one relation, so normalise before handing consumers a
+  // clean `Campaign` value.
+  const memberships: CampaignMembership[] = (data ?? [])
     .map((row) => {
       const campaign = Array.isArray(row.campaign) ? row.campaign[0] : row.campaign;
       if (!campaign) return null;
@@ -168,7 +164,7 @@ export async function getMemberCountsByCampaign(
   if (error) return mapPostgrestError(error);
 
   const counts: Record<string, number> = {};
-  for (const row of (data ?? []) as Array<{ campaign_id: string }>) {
+  for (const row of data ?? []) {
     counts[row.campaign_id] = (counts[row.campaign_id] ?? 0) + 1;
   }
   return ok(counts);

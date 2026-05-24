@@ -79,7 +79,7 @@ export async function createTransfer(
     .single();
 
   if (error) return mapPostgrestError(error);
-  return ok(data as CampaignTransfer);
+  return ok(data);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -107,7 +107,7 @@ export async function cancelTransfer(
     .single();
 
   if (error) return mapPostgrestError(error);
-  return ok(data as CampaignTransfer);
+  return ok(data);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -134,7 +134,7 @@ export async function declineTransfer(
     .single();
 
   if (error) return mapPostgrestError(error);
-  return ok(data as CampaignTransfer);
+  return ok(data);
 }
 
 /* -------------------------------------------------------------------------- */

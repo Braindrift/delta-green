@@ -23,7 +23,6 @@ import { mapPostgrestError, notFound, ok, type Result } from '@/lib/records/erro
 import { listCampaignMembers } from '@/lib/members';
 import type { CampaignMemberWithProfile } from '@/types/members';
 import type {
-  CampaignTransfer,
   PendingTransferForSender,
   TransferAcceptView,
 } from '@/types/transfers';
@@ -84,7 +83,7 @@ export async function getPendingTransferForCampaign(
   if (error) return mapPostgrestError(error);
   if (!data) return ok(null);
 
-  const row = data as CampaignTransfer;
+  const row = data;
 
   const { data: profile, error: profileError } = await supabase
     .from('user_profiles')
@@ -96,7 +95,7 @@ export async function getPendingTransferForCampaign(
 
   return ok({
     ...row,
-    to_username: (profile as { username: string } | null)?.username ?? null,
+    to_username: profile?.username ?? null,
   });
 }
 
@@ -127,7 +126,7 @@ export async function getTransferForRecipient(
   if (error) return mapPostgrestError(error);
   if (!data) return notFound();
 
-  const row = data as CampaignTransfer;
+  const row = data;
 
   // Campaign name. `campaigns: members can read` requires `deleted_at is
   // null`, so a soft-deleted campaign returns null here — the screen maps
@@ -155,8 +154,7 @@ export async function getTransferForRecipient(
 
   return ok({
     ...row,
-    campaign_name: (campaign as { name: string } | null)?.name ?? '',
-    from_username:
-      (senderProfile as { username: string } | null)?.username ?? null,
+    campaign_name: campaign?.name ?? '',
+    from_username: senderProfile?.username ?? null,
   });
 }

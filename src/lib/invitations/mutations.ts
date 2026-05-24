@@ -80,7 +80,7 @@ export async function createStrangerInvitation(
     .single();
 
   if (error) return mapPostgrestError(error);
-  return ok(data as CampaignInvitation);
+  return ok(data);
 }
 
 /* -------------------------------------------------------------------------- */

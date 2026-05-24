@@ -14,22 +14,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { mapPostgrestError, ok, type Result } from '@/lib/records/errors';
-import {
-  NOTIFICATION_KINDS,
-  type Notification,
-  type NotificationKind,
-} from '@/types/notifications';
-
-type RawNotificationRow = {
-  id: string;
-  user_id: string;
-  kind: string;
-  source_kind: string;
-  source_id: string;
-  payload: unknown;
-  read_at: string | null;
-  created_at: string;
-};
+import { NOTIFICATION_KINDS, type Notification } from '@/types/notifications';
 
 const KIND_SET: ReadonlySet<string> = new Set(NOTIFICATION_KINDS);
 
@@ -46,18 +31,19 @@ export async function listNotifications(): Promise<Result<Notification[]>> {
 
   if (error) return mapPostgrestError(error);
 
-  const rows = (data ?? []) as RawNotificationRow[];
   const notifications: Notification[] = [];
-  for (const row of rows) {
+  for (const row of data ?? []) {
     if (!KIND_SET.has(row.kind)) continue;
+    // The typed client gives `kind: NotificationKind` and `payload: Json`. The
+    // remaining `as Notification` is a discriminated-union *assembly*, not a
+    // raw row cast: the kind↔payload correlation can't be inferred from a flat
+    // row, so we re-state the shape the DB trigger guarantees per kind.
     notifications.push({
       id: row.id,
       user_id: row.user_id,
-      kind: row.kind as NotificationKind,
+      kind: row.kind,
       source_kind: row.source_kind,
       source_id: row.source_id,
-      // Payload is denormalised JSON. The discriminated union on `kind`
-      // gives the consumer the right shape; we don't re-validate here.
       payload: (row.payload ?? {}) as Notification['payload'],
       read_at: row.read_at,
       created_at: row.created_at,

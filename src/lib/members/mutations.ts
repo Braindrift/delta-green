@@ -77,7 +77,7 @@ export async function inviteExistingUser(
     .single();
 
   if (error) return mapPostgrestError(error);
-  return ok(data as CampaignInvitation);
+  return ok(data);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -106,7 +106,7 @@ export async function revokeInvitation(
     .single();
 
   if (error) return mapPostgrestError(error);
-  return ok(data as CampaignInvitation);
+  return ok(data);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -138,7 +138,7 @@ export async function kickMember(memberId: string): Promise<Result<CampaignMembe
     .single();
 
   if (error) return mapPostgrestError(error);
-  return ok(data as CampaignMember);
+  return ok(data);
 }
 
 /* -------------------------------------------------------------------------- */
