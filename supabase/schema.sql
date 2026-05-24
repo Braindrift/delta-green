@@ -905,32 +905,32 @@ $$;
 -- All tables exist by this point; forward references are safe.
 
 -- --- campaigns -----------------------------------------------
-create policy "campaigns: members can read"
+-- Consolidated SELECT (DEL-87, S4): members, the owner, and a pending invitee
+-- (existing user) can all read the campaign row — the invitee branch lets the
+-- invite screen render the campaign name before they accept. (DEL-#57 / DEL-58)
+-- auth.uid() is wrapped in (select ...) so Postgres caches it once per query
+-- (DEL-87, S3) instead of re-evaluating per row.
+create policy "campaigns: members and pending invitees can read"
   on campaigns for select
   using (
     deleted_at is null
-    and (auth.uid() = owner_id or is_campaign_member(id))
-  );
-
--- A pending invitee (existing user) can read the campaign row so the
--- invite screen can render its name before they accept. (DEL-#57 / DEL-58)
-create policy "campaigns: pending invitee can read"
-  on campaigns for select
-  using (
-    deleted_at is null
-    and exists (
-      select 1
-      from campaign_invitations ci
-      where ci.campaign_id = campaigns.id
-        and ci.invitee_user_id = auth.uid()
-        and ci.status = 'pending'
-        and ci.expires_at > now()
+    and (
+      (select auth.uid()) = owner_id
+      or is_campaign_member(id)
+      or exists (
+        select 1
+        from campaign_invitations ci
+        where ci.campaign_id = campaigns.id
+          and ci.invitee_user_id = (select auth.uid())
+          and ci.status = 'pending'
+          and ci.expires_at > now()
+      )
     )
   );
 
 create policy "campaigns: authenticated can create"
   on campaigns for insert
-  with check (auth.uid() = owner_id);
+  with check ((select auth.uid()) = owner_id);
 
 create policy "campaigns: gm can update"
   on campaigns for update
@@ -942,13 +942,14 @@ create policy "campaigns: gm can update"
 -- The "members can read active" policy also requires the READ row itself
 -- to be active, so former rows are hidden from non-Handler members. (DEL-36,
 -- tightened DEL-#... member-read.)
-create policy "campaign_members: members can read active"
+-- Consolidated SELECT (DEL-87, S4): the Handler reads ALL member rows (incl.
+-- former) via is_campaign_gm; active members read active member rows generally.
+create policy "campaign_members: gm and active members can read"
   on campaign_members for select
-  using (status = 'active' and is_campaign_member(campaign_id));
-
-create policy "campaign_members: gm can read all"
-  on campaign_members for select
-  using (is_campaign_gm(campaign_id));
+  using (
+    is_campaign_gm(campaign_id)
+    or (status = 'active' and is_campaign_member(campaign_id))
+  );
 
 create policy "campaign_members: gm can insert"
   on campaign_members for insert
@@ -959,26 +960,22 @@ create policy "campaign_members: gm can update"
   using (is_campaign_gm(campaign_id));
 
 -- --- records -------------------------------------------------
--- GMs see all non-deleted records in their campaigns
-create policy "records: gm can read all"
+-- Consolidated SELECT (DEL-87, S4): GMs see all non-deleted records in their
+-- campaigns; players see only records explicitly published to them.
+create policy "records: members can read"
   on records for select
   using (
     deleted_at is null
-    and is_campaign_gm(campaign_id)
-  );
-
--- Players see only records explicitly published to them
-create policy "records: players see published"
-  on records for select
-  using (
-    deleted_at is null
-    and exists (
-      select 1
-      from record_visibility rv
-      join campaign_members cm on cm.id = rv.campaign_member_id
-      where rv.record_id = records.id
-        and cm.user_id = auth.uid()
-        and rv.is_visible = true
+    and (
+      is_campaign_gm(campaign_id)
+      or exists (
+        select 1
+        from record_visibility rv
+        join campaign_members cm on cm.id = rv.campaign_member_id
+        where rv.record_id = records.id
+          and cm.user_id = (select auth.uid())
+          and rv.is_visible
+      )
     )
   );
 
@@ -991,25 +988,20 @@ create policy "records: gm can update"
   using (is_campaign_gm(campaign_id));
 
 -- --- record_visibility ---------------------------------------
--- Players can read their own visibility rows
-create policy "record_visibility: players can read own"
-  on record_visibility for select
-  using (
-    exists (
-      select 1 from campaign_members cm
-      where cm.id = record_visibility.campaign_member_id
-        and cm.user_id = auth.uid()
-    )
-  );
-
--- GMs can read all visibility rows for records in their campaigns
-create policy "record_visibility: gm can read all"
+-- Consolidated SELECT (DEL-87, S4): GMs read all visibility rows for records
+-- in their campaigns; players read their own visibility rows.
+create policy "record_visibility: gm and players can read"
   on record_visibility for select
   using (
     exists (
       select 1 from records r
       where r.id = record_visibility.record_id
         and is_campaign_gm(r.campaign_id)
+    )
+    or exists (
+      select 1 from campaign_members cm
+      where cm.id = record_visibility.campaign_member_id
+        and cm.user_id = (select auth.uid())
     )
   );
 
@@ -1075,30 +1067,32 @@ create policy "sessions: gm can update"
 -- filter `deleted_at` so the owner can restore soft-deleted PCs; the
 -- campaign-member SELECT does filter so deleted PCs disappear for the
 -- Handler.
-create policy "player_characters: owner can read own"
+-- Consolidated SELECT (DEL-87, S4): owner reads their own PCs (no deleted_at
+-- filter, so they can restore soft-deleted PCs); campaign members read PCs
+-- attached to their campaign (deleted PCs hidden from the Handler).
+create policy "player_characters: owner and campaign members can read"
   on player_characters for select
-  using (owner_id = auth.uid());
+  using (
+    owner_id = (select auth.uid())
+    or (
+      campaign_id is not null
+      and deleted_at is null
+      and is_campaign_member(campaign_id)
+    )
+  );
 
 create policy "player_characters: owner can insert own"
   on player_characters for insert
-  with check (owner_id = auth.uid());
+  with check (owner_id = (select auth.uid()));
 
 create policy "player_characters: owner can update own"
   on player_characters for update
-  using (owner_id = auth.uid())
-  with check (owner_id = auth.uid());
+  using (owner_id = (select auth.uid()))
+  with check (owner_id = (select auth.uid()));
 
 create policy "player_characters: owner can delete own"
   on player_characters for delete
-  using (owner_id = auth.uid());
-
-create policy "player_characters: campaign members can read attached"
-  on player_characters for select
-  using (
-    campaign_id is not null
-    and deleted_at is null
-    and is_campaign_member(campaign_id)
-  );
+  using (owner_id = (select auth.uid()));
 
 -- --- campaign_invitations ------------------------------------
 -- Handler has full CRUD on invitations for their campaign(s). DELETE is
@@ -1109,30 +1103,32 @@ create policy "player_characters: campaign members can read attached"
 -- Existing-user invitee can read AND update their own invitation row
 -- (accept / decline). Stranger / magic-link reads are NOT covered by
 -- RLS; the public surface is the `get_invitation_by_token` RPC below.
-create policy "campaign_invitations: gm can read"
+-- Consolidated SELECT + UPDATE (DEL-87, S4): the Handler and the existing-user
+-- invitee can both read and update (accept / decline) the invitation row.
+create policy "campaign_invitations: gm and invitee can read"
   on campaign_invitations for select
-  using (is_campaign_gm(campaign_id));
-
-create policy "campaign_invitations: invitee can read own"
-  on campaign_invitations for select
-  using (invitee_user_id = auth.uid());
+  using (
+    is_campaign_gm(campaign_id)
+    or invitee_user_id = (select auth.uid())
+  );
 
 create policy "campaign_invitations: gm can insert"
   on campaign_invitations for insert
   with check (
     is_campaign_gm(campaign_id)
-    and invited_by = auth.uid()
+    and invited_by = (select auth.uid())
   );
 
-create policy "campaign_invitations: gm can update"
+create policy "campaign_invitations: gm and invitee can update"
   on campaign_invitations for update
-  using (is_campaign_gm(campaign_id))
-  with check (is_campaign_gm(campaign_id));
-
-create policy "campaign_invitations: invitee can update own"
-  on campaign_invitations for update
-  using (invitee_user_id = auth.uid())
-  with check (invitee_user_id = auth.uid());
+  using (
+    is_campaign_gm(campaign_id)
+    or invitee_user_id = (select auth.uid())
+  )
+  with check (
+    is_campaign_gm(campaign_id)
+    or invitee_user_id = (select auth.uid())
+  );
 
 create policy "campaign_invitations: gm can delete"
   on campaign_invitations for delete
@@ -1145,16 +1141,16 @@ create policy "campaign_invitations: gm can delete"
 -- trigger / RPC functions, which bypass RLS.
 create policy "notifications: user can read own"
   on notifications for select
-  using (user_id = auth.uid());
+  using (user_id = (select auth.uid()));
 
 create policy "notifications: user can update own"
   on notifications for update
-  using (user_id = auth.uid())
-  with check (user_id = auth.uid());
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
 
 create policy "notifications: user can delete own"
   on notifications for delete
-  using (user_id = auth.uid());
+  using (user_id = (select auth.uid()));
 
 -- --- user_profiles -------------------------------------------
 -- SELECT open to every authenticated user (the whole point is cross-tenant
@@ -1168,38 +1164,40 @@ create policy "user_profiles: authenticated can read"
 create policy "user_profiles: owner can update own"
   on user_profiles for update
   to authenticated
-  using (user_id = auth.uid())
-  with check (user_id = auth.uid());
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
 
 -- --- campaign_transfers --------------------------------------
 -- Sender (Handler) inserts, reads back, and cancels via update. Recipient
 -- reads their pending transfer and updates it to declined. Accept goes
 -- through the security-definer RPC (RLS-bypassing). No DELETE policy;
 -- transfers persist as audit history, removed only by campaign cascade. (DEL-49)
-create policy "campaign_transfers: sender can read own"
+-- Consolidated SELECT + UPDATE (DEL-87, S4): sender (Handler) and recipient
+-- can both read the transfer; sender cancels and recipient declines via update.
+create policy "campaign_transfers: participants can read"
   on campaign_transfers for select
-  using (from_user_id = auth.uid());
-
-create policy "campaign_transfers: recipient can read own"
-  on campaign_transfers for select
-  using (to_user_id = auth.uid());
+  using (
+    from_user_id = (select auth.uid())
+    or to_user_id = (select auth.uid())
+  );
 
 create policy "campaign_transfers: gm can insert"
   on campaign_transfers for insert
   with check (
     is_campaign_gm(campaign_id)
-    and from_user_id = auth.uid()
+    and from_user_id = (select auth.uid())
   );
 
-create policy "campaign_transfers: sender can update own"
+create policy "campaign_transfers: participants can update"
   on campaign_transfers for update
-  using (from_user_id = auth.uid())
-  with check (from_user_id = auth.uid());
-
-create policy "campaign_transfers: recipient can update own"
-  on campaign_transfers for update
-  using (to_user_id = auth.uid())
-  with check (to_user_id = auth.uid());
+  using (
+    from_user_id = (select auth.uid())
+    or to_user_id = (select auth.uid())
+  )
+  with check (
+    from_user_id = (select auth.uid())
+    or to_user_id = (select auth.uid())
+  );
 
 -- ============================================================
 -- 7. TRIGGERS
