@@ -81,6 +81,14 @@ Standard flow for a migration ticket:
    Erik first per the auto-approval policy below).
 4. If `db push` fails, fix the underlying cause. **Do not reach for MCP
    `apply_migration` to bypass it.**
+5. **Refresh `supabase/schema.sql`** to reflect the new objects. It's the
+   canonical human/AI-readable reference for the whole `public` schema, so
+   every migration ticket should update the relevant section (add the new
+   table/column/policy/RPC/trigger, extend a CHECK, etc.). The file is NOT
+   applied by `db push` — it's a cumulative picture, kept in sync by hand.
+   `npx supabase db dump` would regenerate it but needs the local Docker
+   stack we don't run; when a re-sync is non-trivial, reconcile against the
+   live DB by introspecting `pg_catalog` via MCP `execute_sql` (see DEL-86).
 
 MCP `execute_sql` remains fine for smoke tests, reads, and exploratory
 queries — it does not write to the bookkeeping table.
