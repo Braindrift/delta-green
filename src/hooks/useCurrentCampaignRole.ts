@@ -41,9 +41,11 @@
  *
  * ## Why per-consumer fetch (not in CampaignContext, not a sibling provider)
  *
- * Gated UI in Phase 3.5 is sparse: a handful of buttons in
- * `CampaignInfoPanel`, the Members screen, and the Settings subtree. The
- * extra round-trip per mount is negligible against the simplicity of
+ * Gated UI in Phase 3.5 is sparse: a handful of buttons in the Members
+ * screen and the Settings subtree. (`CampaignInfoPanel` is the deliberate
+ * exception — it takes `role` as a prop because the landing page has no
+ * `:campaignId` segment, so the hook would be idle there; see its docstring.)
+ * The extra round-trip per mount is negligible against the simplicity of
  * keeping the hook self-contained. If the hook ever becomes hot (many
  * concurrent consumers in the same route), the natural next step is to
  * lift the fetch into a sibling `<CampaignRoleProvider>` — the hook's

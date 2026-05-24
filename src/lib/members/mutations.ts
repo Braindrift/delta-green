@@ -186,5 +186,5 @@ export async function leaveCampaign(
   if (data === 'left' || data === 'is_handler' || data === 'not_member') {
     return ok(data);
   }
-  return { ok: false, kind: 'unknown', cause: new Error(`Unexpected leave_campaign outcome: ${String(data)}`) };
+  return unknown(new Error(`Unexpected leave_campaign outcome: ${String(data)}`));
 }

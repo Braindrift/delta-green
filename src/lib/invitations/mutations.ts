@@ -56,7 +56,7 @@ export async function createStrangerInvitation(
   const { data: sessionData } = await supabase.auth.getSession();
   const userId = sessionData.session?.user.id;
   if (!userId) {
-    return { ok: false, kind: 'unknown', cause: new Error('No authenticated session') };
+    return unknown(new Error('No authenticated session'));
   }
 
   // Lowercase the email so the partial-unique index and the

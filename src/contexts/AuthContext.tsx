@@ -67,12 +67,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // 1. Hydrate from whatever's in storage on first mount.
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      setSession(data.session);
-      setLoading(false);
-    });
+    // 1. Hydrate from whatever's in storage on first mount. The `.catch`
+    //    guards against getSession() rejecting (e.g. a transient
+    //    localStorage error in private-mode quota) — without it, `loading`
+    //    would stay `true` forever and strand the user on `Splash`.
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!mounted) return;
+        setSession(data.session);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (mounted) setLoading(false);
+      });
 
     // 2. Subscribe to all subsequent changes (login, logout, token refresh,
     //    cross-tab sync). This is what makes session persistence "just work".
