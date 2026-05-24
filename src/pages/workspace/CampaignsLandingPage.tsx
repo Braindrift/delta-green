@@ -117,13 +117,25 @@ export function CampaignsLandingPage() {
   // Clicking it while already on `/` doesn't unmount this page, so the only
   // way to honour the BACK-equivalent close-on-click contract is to react to
   // fresh navigations into this route that carry the signal.
+  //
+  // Resetting the panel is done as a render-phase state adjustment (React's
+  // "adjust state when a value changes" pattern, guarded by location.key so it
+  // runs at most once per navigation) rather than inside an effect — synchronous
+  // setState in an effect body trips react-hooks/set-state-in-effect and causes
+  // a cascading render. Clearing the consumed history state is a genuine side
+  // effect, so that stays in the effect below.
+  const closeInfo = (location.state as { closeInfo?: boolean } | null)?.closeInfo;
+  const [handledCloseKey, setHandledCloseKey] = useState<string | null>(null);
+  if (closeInfo && handledCloseKey !== location.key) {
+    setHandledCloseKey(location.key);
+    setPanelView({ kind: 'list' });
+  }
+
   useEffect(() => {
-    const state = location.state as { closeInfo?: boolean } | null;
-    if (state?.closeInfo) {
-      setPanelView({ kind: 'list' });
+    if (closeInfo) {
       navigate(location.pathname, { replace: true, state: null });
     }
-  }, [location.key, location.pathname, location.state, navigate]);
+  }, [closeInfo, location.pathname, navigate]);
 
   const handleInfoRequest = useCallback(
     (
