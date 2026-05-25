@@ -29,8 +29,7 @@ supabase/.temp/
 # Claude Code per-user settings 
 .claude/settings.local.json 
  
-# Temp files for PR body construction 
-tmp/ 
+# Temp files for PR body construction
 tmp/
 
 # Sublime

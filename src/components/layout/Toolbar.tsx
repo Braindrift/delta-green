@@ -40,15 +40,21 @@ export function Toolbar() {
   function onNewRecord(type: RecordType): void {
     // Wiring to the form panel arrives with DEL-17. For now, just log so
     // we can verify the dropdown closed and the right type was picked.
-    console.info('[DEL-14] + NEW RECORD selected:', type);
+    if (import.meta.env.DEV) {
+      console.info('[DEL-14] + NEW RECORD selected:', type);
+    }
   }
 
   function onExport(): void {
-    console.info('[DEL-14] EXPORT clicked — registry export not yet wired (design doc §14).');
+    if (import.meta.env.DEV) {
+      console.info('[DEL-14] EXPORT clicked — registry export not yet wired (design doc §14).');
+    }
   }
 
   function onImport(): void {
-    console.info('[DEL-14] IMPORT clicked — registry import not yet wired (design doc §14).');
+    if (import.meta.env.DEV) {
+      console.info('[DEL-14] IMPORT clicked — registry import not yet wired (design doc §14).');
+    }
   }
 
   return (
