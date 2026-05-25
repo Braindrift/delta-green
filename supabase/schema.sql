@@ -1905,6 +1905,13 @@ revoke execute on function notify_on_transfer_decline()        from public, anon
 -- Created manually via Supabase dashboard:
 --   Storage → New bucket → name: "record-photos", Public: off
 --
+-- Server-side upload caps (DEL-93, migration
+-- 20260525184228_cap_record_photos_bucket.sql):
+--   file_size_limit    = 2097152  (2 MB)
+--   allowed_mime_types = {image/jpeg, image/png, image/webp}
+-- Backstops the client-side resize in src/lib/photos/resize.ts against a GM
+-- uploading oversized or non-image blobs straight through the JS client.
+--
 -- Storage RLS (Supabase dashboard → Storage → Policies):
 --
 -- Allow campaign members to read:
