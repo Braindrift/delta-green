@@ -142,9 +142,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // The `redirectTo` decides where Supabase sends the user when they
         // click the link in the email. We point at the confirm route on
         // the current origin — works in dev (`http://localhost:5173`) and
-        // in production (`https://delta-green-fawn.vercel.app`) without
-        // any env config. The URL must be on the allow-list in the
-        // Supabase dashboard's Auth → URL Configuration page.
+        // at the production origin without any env config. The URL must be
+        // on the allow-list in the Supabase dashboard's Auth → URL
+        // Configuration page.
         const redirectTo = `${window.location.origin}/reset-password/confirm`;
         const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
         return { ok: !error, error };
