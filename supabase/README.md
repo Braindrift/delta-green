@@ -64,10 +64,15 @@ where schemaname = 'public' order by tablename, policyname;
 
 ## Storage bucket
 
-The `record-photos` bucket is created manually in the Supabase dashboard
-(Storage → New bucket, set **Public** off). Storage RLS policies are added
-through the dashboard UI — see comments at the bottom of the schema file
-for the policy shape.
+The `record-photos` bucket itself is created manually in the Supabase
+dashboard (Storage → New bucket, set **Public** off). Its settings — the
+public flag, `file_size_limit`, and `allowed_mime_types` — are also currently
+dashboard-controlled (see DEL-93).
+
+The storage **RLS policies**, however, are migration-tracked:
+`migrations/20260514083901_storage_record_photos_policies.sql` (DEL-12).
+That file is the source of truth for who can read and write objects in the
+bucket — don't edit the policies through the dashboard UI.
 
 ---
 
