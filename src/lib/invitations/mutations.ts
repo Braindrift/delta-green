@@ -291,9 +291,12 @@ export async function declineInvitation(
  * Distinct error variants returned by the `send-invitation-email` edge
  * function. Two of these surface a specific UX:
  *
- *   - `not_configured` — Resend env vars unset on the Supabase project.
- *     The invitation row exists; the Handler can share the magic-link
- *     URL manually. Dev-time signal.
+ *   - `not_configured` — a required server-side env var is unset on the
+ *     Supabase project: either the Resend credentials
+ *     (`email_provider_not_configured`) or `APP_BASE_URL`
+ *     (`app_base_url_not_configured`). Either way the invitation row
+ *     exists; the Handler can share the magic-link URL manually. Dev-time
+ *     signal.
  *   - `provider_failed` — Resend returned a non-2xx. Likely a deliverability
  *     issue (unverified sender, bad recipient, rate limit). Same Handler-
  *     can-resend recovery in practice.
@@ -326,7 +329,10 @@ export async function sendInvitationEmail(
     // (a Response). The function returns JSON like `{error: "..."}`. We
     // try to read it to map the specific kind; fall back to unknown.
     const raw = await tryReadError(error);
-    if (raw?.error === 'email_provider_not_configured') {
+    if (
+      raw?.error === 'email_provider_not_configured' ||
+      raw?.error === 'app_base_url_not_configured'
+    ) {
       return { ok: false, error: { kind: 'not_configured' } };
     }
     if (raw?.error === 'email_provider_failed') {

@@ -17,10 +17,12 @@
 //                        <noreply@your-domain>". Required when
 //                        RESEND_API_KEY is set.
 //   APP_BASE_URL       — Public origin of the web app (no trailing slash),
-//                        used to build the `/invite/:token` link. Falls back
-//                        to the request's `Origin` header so the function
-//                        still works in preview deployments without a
-//                        dedicated env var.
+//                        used to build the `/invite/:token` link. Required:
+//                        falls back to the request's `Origin` header when
+//                        present (preview deployments, browser callers), but
+//                        when both are missing the function returns 503
+//                        `app_base_url_not_configured` rather than mailing a
+//                        link to a hardcoded host that could go stale.
 //
 // Authentication: this function requires a valid JWT (Supabase verifies it
 // before invocation). The function then:
@@ -142,10 +144,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
-  const baseUrl =
-    Deno.env.get('APP_BASE_URL') ??
-    req.headers.get('Origin') ??
-    'https://delta-green-fawn.vercel.app';
+  const configuredBaseUrl = Deno.env.get('APP_BASE_URL');
+  const originBaseUrl = req.headers.get('Origin');
+  if (!configuredBaseUrl && !originBaseUrl) {
+    return json({ error: 'app_base_url_not_configured' }, 503);
+  }
+  const baseUrl = configuredBaseUrl ?? originBaseUrl!;
   const inviteUrl = `${baseUrl.replace(/\/$/, '')}/invite/${encodeURIComponent(invitation.token)}`;
 
   const subject = `${inviterHandle} invited you to ${campaignName}`;
