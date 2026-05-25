@@ -1,6 +1,8 @@
+import { Suspense } from 'react';
 import { Outlet } from 'react-router-dom';
 
 import { Header } from '@/components/layout/Header';
+import { RouteFallback } from '@/components/layout/RouteFallback';
 import { WorkspaceSidebar } from '@/components/layout/WorkspaceSidebar';
 import { NotificationsProvider } from '@/contexts/NotificationsContext';
 
@@ -13,7 +15,9 @@ export function WorkspaceLayout() {
           <WorkspaceSidebar />
           <main className="dg-content flex-1 flex flex-col overflow-hidden relative">
             <div className="dg-content-area flex-1 overflow-y-auto px-10 py-9 relative z-[1]">
-              <Outlet />
+              <Suspense fallback={<RouteFallback />}>
+                <Outlet />
+              </Suspense>
             </div>
           </main>
         </div>

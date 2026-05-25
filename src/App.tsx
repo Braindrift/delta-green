@@ -1,3 +1,4 @@
+import { lazy } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import { WorkspaceLayout } from '@/components/layout/WorkspaceLayout';
@@ -6,38 +7,111 @@ import { DEFAULT_NAV_SEGMENT } from '@/components/layout/navConfig';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ToastProvider } from '@/contexts/ToastContext';
-import { InviteAcceptPage } from '@/pages/InviteAcceptPage';
+
+// Auth + invite-token landing stay eager: they're the unauthenticated
+// entry points, so lazy-loading them would only add a chunk fetch to the
+// very first paint. Everything behind `ProtectedRoute` is code-split via
+// `React.lazy` so `/login` no longer downloads the whole authenticated app.
 import { InviteTokenPage } from '@/pages/InviteTokenPage';
-import { TransferAcceptPage } from '@/pages/TransferAcceptPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { ResetPasswordRequestPage } from '@/pages/ResetPasswordRequestPage';
-import {
-  AgentsPage,
-  ArtifactsPage,
-  AssetsPage,
-  CiviliansPage,
-  EventsAllPage,
-  GlobalAffairsPage,
-  HeadlinesPage,
-  IncidentsPage,
-  LocationsPage,
-  OperationsActivePage,
-  OperationsAllPage,
-  OperationsClosedPage,
-  OperationsCompromisedPage,
-  OrganisationsPage,
-  PoiPage,
-  UnnaturalPage,
-} from '@/pages/sections';
 import { SignupPage } from '@/pages/SignupPage';
-import { CampaignsLandingPage } from '@/pages/workspace/CampaignsLandingPage';
-import { CreateCampaignPage } from '@/pages/workspace/CreateCampaignPage';
-import { WorkspaceNotificationsPage } from '@/pages/workspace/WorkspaceNotificationsPage';
-import { WorkspaceBrowsePage } from '@/pages/workspace/WorkspaceBrowsePage';
-import { WorkspaceProfilePage } from '@/pages/workspace/WorkspaceProfilePage';
-import { WorkspaceAccountPage } from '@/pages/workspace/WorkspaceAccountPage';
-import { WorkspacePreferencesPage } from '@/pages/workspace/WorkspacePreferencesPage';
+
+const InviteAcceptPage = lazy(() =>
+  import('@/pages/InviteAcceptPage').then((m) => ({ default: m.InviteAcceptPage })),
+);
+const TransferAcceptPage = lazy(() =>
+  import('@/pages/TransferAcceptPage').then((m) => ({ default: m.TransferAcceptPage })),
+);
+
+const CampaignsLandingPage = lazy(() =>
+  import('@/pages/workspace/CampaignsLandingPage').then((m) => ({
+    default: m.CampaignsLandingPage,
+  })),
+);
+const CreateCampaignPage = lazy(() =>
+  import('@/pages/workspace/CreateCampaignPage').then((m) => ({
+    default: m.CreateCampaignPage,
+  })),
+);
+const WorkspaceNotificationsPage = lazy(() =>
+  import('@/pages/workspace/WorkspaceNotificationsPage').then((m) => ({
+    default: m.WorkspaceNotificationsPage,
+  })),
+);
+const WorkspaceBrowsePage = lazy(() =>
+  import('@/pages/workspace/WorkspaceBrowsePage').then((m) => ({
+    default: m.WorkspaceBrowsePage,
+  })),
+);
+const WorkspaceProfilePage = lazy(() =>
+  import('@/pages/workspace/WorkspaceProfilePage').then((m) => ({
+    default: m.WorkspaceProfilePage,
+  })),
+);
+const WorkspaceAccountPage = lazy(() =>
+  import('@/pages/workspace/WorkspaceAccountPage').then((m) => ({
+    default: m.WorkspaceAccountPage,
+  })),
+);
+const WorkspacePreferencesPage = lazy(() =>
+  import('@/pages/workspace/WorkspacePreferencesPage').then((m) => ({
+    default: m.WorkspacePreferencesPage,
+  })),
+);
+
+// Campaign-section leaves are named exports of one barrel
+// (`pages/sections/index.tsx`); lazy-importing them coalesces into a single
+// shared `sections` chunk, which is fine for these throwaway placeholders.
+const AgentsPage = lazy(() =>
+  import('@/pages/sections').then((m) => ({ default: m.AgentsPage })),
+);
+const ArtifactsPage = lazy(() =>
+  import('@/pages/sections').then((m) => ({ default: m.ArtifactsPage })),
+);
+const AssetsPage = lazy(() =>
+  import('@/pages/sections').then((m) => ({ default: m.AssetsPage })),
+);
+const CiviliansPage = lazy(() =>
+  import('@/pages/sections').then((m) => ({ default: m.CiviliansPage })),
+);
+const EventsAllPage = lazy(() =>
+  import('@/pages/sections').then((m) => ({ default: m.EventsAllPage })),
+);
+const GlobalAffairsPage = lazy(() =>
+  import('@/pages/sections').then((m) => ({ default: m.GlobalAffairsPage })),
+);
+const HeadlinesPage = lazy(() =>
+  import('@/pages/sections').then((m) => ({ default: m.HeadlinesPage })),
+);
+const IncidentsPage = lazy(() =>
+  import('@/pages/sections').then((m) => ({ default: m.IncidentsPage })),
+);
+const LocationsPage = lazy(() =>
+  import('@/pages/sections').then((m) => ({ default: m.LocationsPage })),
+);
+const OperationsActivePage = lazy(() =>
+  import('@/pages/sections').then((m) => ({ default: m.OperationsActivePage })),
+);
+const OperationsAllPage = lazy(() =>
+  import('@/pages/sections').then((m) => ({ default: m.OperationsAllPage })),
+);
+const OperationsClosedPage = lazy(() =>
+  import('@/pages/sections').then((m) => ({ default: m.OperationsClosedPage })),
+);
+const OperationsCompromisedPage = lazy(() =>
+  import('@/pages/sections').then((m) => ({ default: m.OperationsCompromisedPage })),
+);
+const OrganisationsPage = lazy(() =>
+  import('@/pages/sections').then((m) => ({ default: m.OrganisationsPage })),
+);
+const PoiPage = lazy(() =>
+  import('@/pages/sections').then((m) => ({ default: m.PoiPage })),
+);
+const UnnaturalPage = lazy(() =>
+  import('@/pages/sections').then((m) => ({ default: m.UnnaturalPage })),
+);
 
 /**
  * Route table.

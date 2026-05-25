@@ -20,10 +20,12 @@
  * has a session by the time this component mounts.
  */
 
+import { Suspense } from 'react';
 import { Outlet } from 'react-router-dom';
 
 import { CampaignGuard } from '@/components/layout/CampaignGuard';
 import { Header } from '@/components/layout/Header';
+import { RouteFallback } from '@/components/layout/RouteFallback';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Toolbar } from '@/components/layout/Toolbar';
 import { CampaignProvider } from '@/contexts/CampaignContext';
@@ -46,7 +48,9 @@ export function AppLayout() {
             <main className="dg-content flex-1 flex flex-col overflow-hidden relative">
               <Toolbar />
               <div className="dg-content-area flex-1 overflow-y-auto px-10 py-9 relative z-[1]">
-                <Outlet />
+                <Suspense fallback={<RouteFallback />}>
+                  <Outlet />
+                </Suspense>
               </div>
             </main>
           </div>
