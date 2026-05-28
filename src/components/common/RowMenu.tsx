@@ -47,10 +47,7 @@ export function RowMenu({ label, children }: RowMenuProps) {
         ⋯
       </button>
       {open ? (
-        <div
-          role="menu"
-          className="absolute top-[calc(100%+4px)] right-0 min-w-[200px] z-[50] flex flex-col overflow-hidden border border-green-mid bg-desk-edge"
-        >
+        <div className="absolute top-[calc(100%+4px)] right-0 min-w-[200px] z-[50] flex flex-col overflow-hidden border border-green-mid bg-desk-edge">
           {children(() => setOpen(false))}
         </div>
       ) : null}
